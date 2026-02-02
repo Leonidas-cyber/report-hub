@@ -106,34 +106,39 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       {/* Navigation Bar */}
       <nav className="bg-card border-b border-border sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="icon-circle-primary">
-              <FileText className="h-5 w-5" />
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="icon-circle-primary flex-shrink-0">
+              <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
-            <span className="font-bold text-lg text-foreground">Congregación Arrayanes</span>
+            <span className="font-bold text-sm sm:text-lg text-foreground truncate">
+              Congregación Arrayanes
+            </span>
           </div>
-          <div className="flex items-center gap-3">
-            <NotificationPrompt />
+          <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
+            <div className="hidden sm:block">
+              <NotificationPrompt />
+            </div>
             <Link to="/about">
-              <Button variant="ghost" size="sm">
-                Información
+              <Button variant="ghost" size="sm" className="px-2 sm:px-3">
+                <span className="hidden sm:inline">Información</span>
+                <span className="sm:hidden text-xs">Info</span>
               </Button>
             </Link>
             <Link to="/login">
-              <Button variant="outline" size="sm">
-                <Settings className="h-4 w-4 mr-2" />
-                Administración
+              <Button variant="outline" size="sm" className="px-2 sm:px-3">
+                <Settings className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Administración</span>
               </Button>
             </Link>
           </div>
         </div>
       </nav>
 
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-foreground">Informe de Servicio</h1>
-          <p className="text-muted-foreground mt-1">
+      <div className="max-w-2xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Informe de Servicio</h1>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
             Por favor, complete el siguiente formulario con los detalles de su servicio del mes.
           </p>
         </div>
