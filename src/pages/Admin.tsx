@@ -1,6 +1,8 @@
 import { StatCard } from '@/components/StatCard';
 import { ReportsGrid } from '@/components/ReportsGrid';
 import { AdminHeader } from '@/components/AdminHeader';
+import { AttendanceForm } from '@/components/AttendanceForm';
+import { AttendanceStats } from '@/components/AttendanceStats';
 import { exportToExcel } from '@/utils/exportExcel';
 import { useServiceReports } from '@/hooks/useServiceReports';
 import { useSuperintendents } from '@/hooks/useSuperintendents';
@@ -9,11 +11,13 @@ import { Users, FileText, Clock, Download } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useState } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const Admin = () => {
   const { reports, loading, updateReport, deleteReport, refetch } = useServiceReports();
   const { superintendents } = useSuperintendents();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [attendanceKey, setAttendanceKey] = useState(0);
   const previousMonth = getPreviousMonth();
 
   const totalReports = reports.length;
@@ -136,20 +140,45 @@ const Admin = () => {
           />
         </div>
 
-        {/* Grid de tarjetas */}
-        <div className="bg-card rounded-xl border border-border p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-foreground">
-              Listado de Informes
-            </h3>
-          </div>
-          <ReportsGrid 
-            reports={reports} 
-            superintendents={superintendents}
-            onUpdateReport={handleUpdateReport}
-            onDeleteReport={handleDeleteReport}
-          />
-        </div>
+        {/* Tabs para Informes y Asistencia */}
+        <Tabs defaultValue="reports" className="space-y-6">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="reports">Informes de Servicio</TabsTrigger>
+            <TabsTrigger value="attendance">Control de Asistencia</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="reports">
+            {/* Grid de tarjetas */}
+            <div className="bg-card rounded-xl border border-border p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-foreground">
+                  Listado de Informes
+                </h3>
+              </div>
+              <ReportsGrid 
+                reports={reports} 
+                superintendents={superintendents}
+                onUpdateReport={handleUpdateReport}
+                onDeleteReport={handleDeleteReport}
+              />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="attendance">
+            <div className="grid gap-6 lg:grid-cols-3">
+              <div className="lg:col-span-1">
+                <AttendanceForm onSuccess={() => setAttendanceKey(k => k + 1)} />
+                <p className="text-sm text-muted-foreground mt-4 text-center">
+                  Registra la asistencia al finalizar cada reunión.<br />
+                  Jueves (Entre Semana) y Domingos (Fin de Semana).
+                </p>
+              </div>
+              <div className="lg:col-span-2">
+                <AttendanceStats key={attendanceKey} />
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );

@@ -24,7 +24,7 @@ import {
   getPreviousMonthYear,
 } from '@/types/report';
 import type { RoleType } from '@/types/report';
-import { AlertTriangle, Send, Settings, FileText, Users } from 'lucide-react';
+import { AlertTriangle, Send, Settings, FileText } from 'lucide-react';
 
 const Index = () => {
   // Reports are always for the PREVIOUS month
@@ -113,14 +113,8 @@ const Index = () => {
             </div>
             <span className="font-bold text-lg text-foreground">Congregación Arrayanes</span>
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
             <NotificationPrompt />
-            <Link to="/attendance">
-              <Button variant="outline" size="sm">
-                <Users className="h-4 w-4 mr-2" />
-                Asistencia
-              </Button>
-            </Link>
             <Link to="/about">
               <Button variant="ghost" size="sm">
                 Información
