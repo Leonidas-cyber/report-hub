@@ -67,6 +67,7 @@ export function scheduleLocalNotification() {
       const notification = new Notification('Recordatorio de Informe - Congregación Arrayanes', {
         body: `¡No olvides enviar tu informe de servicio de ${previousMonth}!`,
         icon: '/favicon.ico',
+        badge: '/favicon.ico',
         tag: 'informe-reminder'
       });
 
@@ -86,6 +87,7 @@ export async function sendBroadcastNotification(message: string): Promise<boolea
     const notification = new Notification('Congregación Arrayanes', {
       body: message,
       icon: '/favicon.ico',
+      badge: '/favicon.ico',
       tag: 'admin-notification'
     });
 
