@@ -1,7 +1,7 @@
 {
-  "name": "Informes de Servicio",
+  "name": "Informes - Congregación Arrayanes",
   "short_name": "Informes",
-  "description": "Sistema de informes de servicio para la congregación",
+  "description": "Sistema de informes de servicio para la Congregación Arrayanes",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
