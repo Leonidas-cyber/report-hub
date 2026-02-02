@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { ImageCropper } from '@/components/ImageCropper';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { sendBroadcastNotification } from '@/utils/notifications';
@@ -44,21 +45,25 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
   const [profile, setProfile] = useState<AdminProfile | null>(null);
   const [uploading, setUploading] = useState(false);
   const [sendingNotification, setSendingNotification] = useState(false);
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string>('');
 
-  // Get current month name in Spanish
-  const getCurrentMonthName = (): string => {
+  // Get previous month name in Spanish (the month reports are due for)
+  const getPreviousMonthName = (): string => {
     const months = [
       'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
       'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
     ];
-    return months[new Date().getMonth()];
+    const currentMonth = new Date().getMonth();
+    const previousMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    return months[previousMonth];
   };
 
   const handleSendNotification = async () => {
     setSendingNotification(true);
     try {
-      const currentMonth = getCurrentMonthName();
-      const message = `¡Recuerda enviar tu informe de servicio de ${currentMonth}! - Congregación Arrayanes`;
+      const previousMonth = getPreviousMonthName();
+      const message = `¡Recuerda enviar tu informe de servicio de ${previousMonth}! - Congregación Arrayanes`;
       const success = await sendBroadcastNotification(message);
       
       if (success) {
@@ -96,36 +101,52 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
     setProfile(data);
   };
 
-  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !user) return;
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSelectedImage(reader.result as string);
+      setCropperOpen(true);
+    };
+    reader.readAsDataURL(file);
+    // Reset input so same file can be selected again
+    event.target.value = '';
+  };
+
+  const handleCroppedImage = async (croppedBlob: Blob) => {
+    if (!user) return;
 
     setUploading(true);
     try {
-      // Upload file to storage
-      const fileExt = file.name.split('.').pop();
-      const filePath = `${user.id}/avatar.${fileExt}`;
+      const filePath = `${user.id}/avatar.jpg`;
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(filePath, file, { upsert: true });
+        .upload(filePath, croppedBlob, { 
+          upsert: true,
+          contentType: 'image/jpeg'
+        });
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
+      // Get public URL with cache buster
       const { data: { publicUrl } } = supabase.storage
         .from('avatars')
         .getPublicUrl(filePath);
 
+      const urlWithCacheBuster = `${publicUrl}?t=${Date.now()}`;
+
       // Update profile
       const { error: updateError } = await supabase
         .from('admin_profiles')
-        .update({ avatar_url: publicUrl })
+        .update({ avatar_url: urlWithCacheBuster })
         .eq('user_id', user.id);
 
       if (updateError) throw updateError;
 
-      setProfile(prev => prev ? { ...prev, avatar_url: publicUrl } : null);
+      setProfile(prev => prev ? { ...prev, avatar_url: urlWithCacheBuster } : null);
       toast.success('Foto de perfil actualizada');
     } catch (error) {
       console.error('Error uploading avatar:', error);
@@ -149,6 +170,7 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
     .toUpperCase();
 
   return (
+    <>
     <header className="bg-card border-b border-border sticky top-0 z-10">
       <div className="max-w-7xl mx-auto px-4 py-4">
         {/* Welcome message */}
@@ -178,7 +200,7 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
                     <input
                       type="file"
                       accept="image/*"
-                      onChange={handleAvatarUpload}
+                      onChange={handleFileSelect}
                       className="hidden"
                       disabled={uploading}
                     />
@@ -271,5 +293,14 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
         </div>
       </div>
     </header>
+
+      {/* Image Cropper Modal */}
+      <ImageCropper
+        open={cropperOpen}
+        onClose={() => setCropperOpen(false)}
+        imageSrc={selectedImage}
+        onCropComplete={handleCroppedImage}
+      />
+    </>
   );
 }

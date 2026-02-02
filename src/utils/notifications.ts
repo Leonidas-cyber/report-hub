@@ -3,13 +3,15 @@ import { supabase } from '@/integrations/supabase/client';
 // VAPID public key would need to be set up for production
 // For now, we'll use localStorage-based notifications as a fallback
 
-// Get current month name in Spanish
-function getCurrentMonthName(): string {
+// Get previous month name in Spanish (the month reports are due for)
+function getPreviousMonthName(): string {
   const months = [
     'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
     'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
   ];
-  return months[new Date().getMonth()];
+  const currentMonth = new Date().getMonth();
+  const previousMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+  return months[previousMonth];
 }
 
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -59,11 +61,11 @@ export function scheduleLocalNotification() {
   // Check if it's the first week of the month (reminder time)
   const dayOfMonth = new Date().getDate();
   if (dayOfMonth <= 7) {
-    // Show a notification reminder with current month
+    // Show a notification reminder with previous month (the one reports are due for)
     if (Notification.permission === 'granted') {
-      const currentMonth = getCurrentMonthName();
+      const previousMonth = getPreviousMonthName();
       const notification = new Notification('Recordatorio de Informe - Congregación Arrayanes', {
-        body: `¡No olvides enviar tu informe de servicio de ${currentMonth}!`,
+        body: `¡No olvides enviar tu informe de servicio de ${previousMonth}!`,
         icon: '/favicon.ico',
         tag: 'informe-reminder'
       });
