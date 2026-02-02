@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
-import { ServiceReport, getRoleLabel } from '@/types/report';
+import { ServiceReport } from '@/hooks/useServiceReports';
+import { getRoleLabel } from '@/types/report';
 
 export function exportToExcel(reports: ServiceReport[], fileName: string = 'informes') {
   const data = reports.map((report) => ({
