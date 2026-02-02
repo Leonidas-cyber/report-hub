@@ -10,9 +10,21 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { ArrowLeft, RefreshCw, FileSpreadsheet, LogOut, Camera, User } from 'lucide-react';
+import { sendBroadcastNotification } from '@/utils/notifications';
+import { ArrowLeft, RefreshCw, FileSpreadsheet, LogOut, Camera, User, Bell, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface AdminProfile {
@@ -23,13 +35,43 @@ interface AdminProfile {
 interface AdminHeaderProps {
   onRefresh: () => void;
   onExport: () => void;
+  onClearDatabase: () => void;
   isRefreshing: boolean;
 }
 
-export function AdminHeader({ onRefresh, onExport, isRefreshing }: AdminHeaderProps) {
+export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing }: AdminHeaderProps) {
   const { user, signOut } = useAuth();
   const [profile, setProfile] = useState<AdminProfile | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [sendingNotification, setSendingNotification] = useState(false);
+
+  // Get current month name in Spanish
+  const getCurrentMonthName = (): string => {
+    const months = [
+      'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+      'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+    ];
+    return months[new Date().getMonth()];
+  };
+
+  const handleSendNotification = async () => {
+    setSendingNotification(true);
+    try {
+      const currentMonth = getCurrentMonthName();
+      const message = `¡Recuerda enviar tu informe de servicio de ${currentMonth}! - Congregación Arrayanes`;
+      const success = await sendBroadcastNotification(message);
+      
+      if (success) {
+        toast.success('Notificación enviada correctamente');
+      } else {
+        toast.error('Las notificaciones no están habilitadas en este dispositivo');
+      }
+    } catch {
+      toast.error('Error al enviar la notificación');
+    } finally {
+      setSendingNotification(false);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -160,14 +202,23 @@ export function AdminHeader({ onRefresh, onExport, isRefreshing }: AdminHeaderPr
         </div>
 
         {/* Actions row */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <Link to="/">
             <Button variant="ghost" size="sm">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Volver
             </Button>
           </Link>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSendNotification}
+              disabled={sendingNotification}
+            >
+              <Bell className={`h-4 w-4 mr-2 ${sendingNotification ? 'animate-pulse' : ''}`} />
+              {sendingNotification ? 'Enviando...' : 'Enviar Recordatorio'}
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -184,6 +235,30 @@ export function AdminHeader({ onRefresh, onExport, isRefreshing }: AdminHeaderPr
               <FileSpreadsheet className="h-4 w-4" />
               Exportar Excel
             </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Borrar Todo
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta acción eliminará TODOS los informes de la base de datos. 
+                    Esta acción no se puede deshacer. Se recomienda exportar a Excel 
+                    antes de continuar.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={onClearDatabase} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Sí, borrar todo
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             <Button
               variant="outline"
               size="sm"

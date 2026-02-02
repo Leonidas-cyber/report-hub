@@ -111,10 +111,15 @@ const Index = () => {
             <div className="icon-circle-primary">
               <FileText className="h-5 w-5" />
             </div>
-            <span className="font-bold text-lg text-foreground">Informes de Servicio</span>
+            <span className="font-bold text-lg text-foreground">Congregación Arrayanes</span>
           </div>
           <div className="flex items-center gap-3">
             <NotificationPrompt />
+            <Link to="/about">
+              <Button variant="ghost" size="sm">
+                Información
+              </Button>
+            </Link>
             <Link to="/login">
               <Button variant="outline" size="sm">
                 <Settings className="h-4 w-4 mr-2" />

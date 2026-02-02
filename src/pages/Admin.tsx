@@ -6,6 +6,7 @@ import { useServiceReports } from '@/hooks/useServiceReports';
 import { useSuperintendents } from '@/hooks/useSuperintendents';
 import { getPreviousMonth } from '@/types/report';
 import { Users, FileText, Clock, Download } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useState } from 'react';
 
@@ -54,6 +55,22 @@ const Admin = () => {
     toast.success('Datos actualizados');
   };
 
+  const handleClearDatabase = async () => {
+    try {
+      const { error } = await supabase
+        .from('service_reports')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all records
+      
+      if (error) throw error;
+      
+      toast.success('Todos los informes han sido eliminados');
+      await refetch();
+    } catch {
+      toast.error('Error al eliminar los informes');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -71,6 +88,7 @@ const Admin = () => {
       <AdminHeader 
         onRefresh={handleRefresh}
         onExport={handleExportExcel}
+        onClearDatabase={handleClearDatabase}
         isRefreshing={isRefreshing}
       />
 

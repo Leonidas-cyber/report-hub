@@ -2,19 +2,16 @@ import * as XLSX from 'xlsx';
 import { ServiceReport } from '@/hooks/useServiceReports';
 import { getRoleLabel } from '@/types/report';
 
-export function exportToExcel(reports: ServiceReport[], fileName: string = 'informes') {
+export function exportToExcel(reports: ServiceReport[], fileName: string = 'informes_arrayanes') {
+  // Order: nombre, rol, participo, horas, cursosBiblicos, superintendente, notas
   const data = reports.map((report) => ({
-    'Nombre Completo': report.fullName,
-    'Rol': getRoleLabel(report.role),
-    'Horas': report.hours ?? 'N/A',
-    'Cursos Bíblicos': report.bibleCourses ?? 'N/A',
-    'Participó': report.participated ? 'Sí' : 'No',
-    'Superintendente': report.superintendentName,
-    'Mes': report.month,
-    'Año': report.year,
-    'Notas': report.notes || '',
-    'Fecha de Envío': new Date(report.submittedAt).toLocaleDateString('es-ES'),
-    'Estado': report.status === 'pending' ? 'Pendiente' : report.status === 'reviewed' ? 'Revisado' : 'Editado',
+    'nombre': report.fullName,
+    'rol': getRoleLabel(report.role),
+    'participo': report.participated ? 'Sí' : 'No',
+    'horas': report.hours ?? '',
+    'cursosBiblicos': report.bibleCourses ?? '',
+    'superintendente': report.superintendentName,
+    'notas': report.notes || '',
   }));
 
   const worksheet = XLSX.utils.json_to_sheet(data);
@@ -22,21 +19,17 @@ export function exportToExcel(reports: ServiceReport[], fileName: string = 'info
   
   // Ajustar ancho de columnas
   const columnWidths = [
-    { wch: 25 }, // Nombre
-    { wch: 18 }, // Rol
-    { wch: 8 },  // Horas
-    { wch: 15 }, // Cursos
-    { wch: 10 }, // Participó
-    { wch: 20 }, // Superintendente
-    { wch: 12 }, // Mes
-    { wch: 8 },  // Año
-    { wch: 30 }, // Notas
-    { wch: 15 }, // Fecha
-    { wch: 12 }, // Estado
+    { wch: 30 }, // nombre
+    { wch: 18 }, // rol
+    { wch: 12 }, // participo
+    { wch: 10 }, // horas
+    { wch: 15 }, // cursosBiblicos
+    { wch: 25 }, // superintendente
+    { wch: 35 }, // notas
   ];
   worksheet['!cols'] = columnWidths;
 
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Informes');
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Informes Arrayanes');
   
   const timestamp = new Date().toISOString().split('T')[0];
   XLSX.writeFile(workbook, `${fileName}_${timestamp}.xlsx`);
