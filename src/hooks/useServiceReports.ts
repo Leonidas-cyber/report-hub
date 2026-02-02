@@ -129,5 +129,17 @@ export function useServiceReports() {
     }
   };
 
-  return { reports, loading, updateReport, refetch: fetchReports };
+  const deleteReport = async (id: string) => {
+    const { error } = await supabase
+      .from('service_reports')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting report:', error);
+      throw error;
+    }
+  };
+
+  return { reports, loading, updateReport, deleteReport, refetch: fetchReports };
 }

@@ -41,6 +41,29 @@ export const MONTHS = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
 ];
 
+/**
+ * Returns the PREVIOUS month name (reports are always for last month)
+ */
+export function getPreviousMonth(): string {
+  const currentMonth = new Date().getMonth();
+  // If January (0), return December (11)
+  const previousMonthIndex = currentMonth === 0 ? 11 : currentMonth - 1;
+  return MONTHS[previousMonthIndex];
+}
+
+/**
+ * Returns the year for the previous month's report
+ */
+export function getPreviousMonthYear(): number {
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  // If January, the previous month (December) belongs to last year
+  return currentMonth === 0 ? now.getFullYear() - 1 : now.getFullYear();
+}
+
+/**
+ * @deprecated Use getPreviousMonth() instead - reports should always be for the previous month
+ */
 export function getCurrentMonth(): string {
   return MONTHS[new Date().getMonth()];
 }
@@ -60,4 +83,15 @@ export function getRoleBadgeClass(role: RoleType): string {
 
 export function getRoleLabel(role: RoleType): string {
   return ROLES.find(r => r.value === role)?.label || role;
+}
+
+export function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('es-ES', {
+    day: 'numeric',
+    month: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 }
