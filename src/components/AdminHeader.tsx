@@ -172,25 +172,25 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
   return (
     <>
     <header className="bg-card border-b border-border sticky top-0 z-10">
-      <div className="max-w-7xl mx-auto px-4 py-4">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
         {/* Welcome message */}
-        <div className="flex items-center justify-between mb-4 pb-4 border-b border-border">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between mb-3 sm:mb-4 pb-3 sm:pb-4 border-b border-border">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="relative group">
-                  <Avatar className="h-14 w-14 border-2 border-primary/20 hover:border-primary transition-colors">
+                <button className="relative group flex-shrink-0">
+                  <Avatar className="h-10 w-10 sm:h-14 sm:w-14 border-2 border-primary/20 hover:border-primary transition-colors">
                     <AvatarImage src={profile?.avatar_url || undefined} alt={displayName} />
-                    <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
+                    <AvatarFallback className="bg-primary/10 text-primary text-sm sm:text-lg font-semibold">
                       {initials}
                     </AvatarFallback>
                   </Avatar>
                   <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <Camera className="h-5 w-5 text-white" />
+                    <Camera className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                   </div>
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuContent align="start" className="w-56 bg-popover">
                 <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
@@ -208,15 +208,15 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
                 </DropdownMenuItem>
                 <DropdownMenuItem className="flex items-center">
                   <User className="h-4 w-4 mr-2" />
-                  {user?.email}
+                  <span className="truncate">{user?.email}</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-2xl font-bold text-foreground truncate">
                 ¡Bienvenido, {displayName}!
               </h1>
-              <p className="text-muted-foreground">
+              <p className="text-xs sm:text-base text-muted-foreground hidden sm:block">
                 Gestiona los informes de la congregación
               </p>
             </div>
@@ -224,47 +224,50 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
         </div>
 
         {/* Actions row */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center justify-between gap-2 sm:gap-4">
           <Link to="/">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Volver
+            <Button variant="ghost" size="sm" className="px-2 sm:px-3">
+              <ArrowLeft className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Volver</span>
             </Button>
           </Link>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-end">
             <Button
               variant="outline"
               size="sm"
               onClick={handleSendNotification}
               disabled={sendingNotification}
+              className="px-2 sm:px-3"
             >
-              <Bell className={`h-4 w-4 mr-2 ${sendingNotification ? 'animate-pulse' : ''}`} />
-              {sendingNotification ? 'Enviando...' : 'Enviar Recordatorio'}
+              <Bell className={`h-4 w-4 sm:mr-2 ${sendingNotification ? 'animate-pulse' : ''}`} />
+              <span className="hidden sm:inline">{sendingNotification ? 'Enviando...' : 'Recordatorio'}</span>
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={onRefresh}
               disabled={isRefreshing}
+              className="px-2 sm:px-3"
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-              Actualizar
+              <RefreshCw className={`h-4 w-4 sm:mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Actualizar</span>
             </Button>
             <Button
-              className="btn-excel"
+              className="btn-excel px-2 sm:px-3"
               onClick={onExport}
+              size="sm"
             >
-              <FileSpreadsheet className="h-4 w-4" />
-              Exportar Excel
+              <FileSpreadsheet className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Excel</span>
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Borrar Todo
+                <Button variant="destructive" size="sm" className="px-2 sm:px-3">
+                  <Trash2 className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Borrar</span>
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent>
+              <AlertDialogContent className="mx-4 max-w-md">
                 <AlertDialogHeader>
                   <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                   <AlertDialogDescription>
@@ -273,9 +276,9 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
                     antes de continuar.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={onClearDatabase} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                  <AlertDialogCancel className="w-full sm:w-auto">Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={onClearDatabase} className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90">
                     Sí, borrar todo
                   </AlertDialogAction>
                 </AlertDialogFooter>
@@ -285,9 +288,10 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
               variant="outline"
               size="sm"
               onClick={handleSignOut}
+              className="px-2 sm:px-3"
             >
-              <LogOut className="h-4 w-4 mr-2" />
-              Salir
+              <LogOut className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Salir</span>
             </Button>
           </div>
         </div>

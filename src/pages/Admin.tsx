@@ -97,19 +97,19 @@ const Admin = () => {
       />
 
       {/* Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
         {/* Título del mes */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-primary">
+        <div className="mb-6 sm:mb-8">
+          <h2 className="text-xl sm:text-2xl font-bold text-primary">
             Informes de {previousMonth} {new Date().getFullYear()}
           </h2>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
             Datos actualizados en tiempo real
           </p>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
           <StatCard
             title="Total Informes"
             value={totalReports}
@@ -142,16 +142,16 @@ const Admin = () => {
 
         {/* Tabs para Informes y Asistencia */}
         <Tabs defaultValue="reports" className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="reports">Informes de Servicio</TabsTrigger>
-            <TabsTrigger value="attendance">Control de Asistencia</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="reports" className="text-xs sm:text-sm">Informes</TabsTrigger>
+            <TabsTrigger value="attendance" className="text-xs sm:text-sm">Asistencia</TabsTrigger>
           </TabsList>
 
           <TabsContent value="reports">
             {/* Grid de tarjetas */}
-            <div className="bg-card rounded-xl border border-border p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-foreground">
+            <div className="bg-card rounded-xl border border-border p-4 sm:p-6">
+              <div className="flex items-center justify-between mb-4 sm:mb-6">
+                <h3 className="text-base sm:text-lg font-semibold text-foreground">
                   Listado de Informes
                 </h3>
               </div>
@@ -165,10 +165,10 @@ const Admin = () => {
           </TabsContent>
 
           <TabsContent value="attendance">
-            <div className="grid gap-6 lg:grid-cols-3">
+            <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
               <div className="lg:col-span-1">
                 <AttendanceForm onSuccess={() => setAttendanceKey(k => k + 1)} />
-                <p className="text-sm text-muted-foreground mt-4 text-center">
+                <p className="text-xs sm:text-sm text-muted-foreground mt-3 sm:mt-4 text-center">
                   Registra la asistencia al finalizar cada reunión.<br />
                   Jueves (Entre Semana) y Domingos (Fin de Semana).
                 </p>
