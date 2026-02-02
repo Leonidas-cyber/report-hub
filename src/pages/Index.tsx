@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useSuperintendents } from '@/hooks/useSuperintendents';
 import { SuccessModal } from '@/components/SuccessModal';
+import { NotificationPrompt } from '@/components/NotificationPrompt';
+import { setupNotifications } from '@/utils/notifications';
 import { 
   ROLES, 
   getPreviousMonth,
@@ -42,6 +44,10 @@ const Index = () => {
 
   const showHoursField = role === 'precursor_auxiliar' || role === 'precursor_regular';
 
+  // Initialize notifications on mount
+  useEffect(() => {
+    setupNotifications();
+  }, []);
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -107,12 +113,15 @@ const Index = () => {
             </div>
             <span className="font-bold text-lg text-foreground">Informes de Servicio</span>
           </div>
-          <Link to="/login">
-            <Button variant="outline" size="sm">
-              <Settings className="h-4 w-4 mr-2" />
-              Administración
-            </Button>
-          </Link>
+          <div className="flex items-center gap-3">
+            <NotificationPrompt />
+            <Link to="/login">
+              <Button variant="outline" size="sm">
+                <Settings className="h-4 w-4 mr-2" />
+                Administración
+              </Button>
+            </Link>
+          </div>
         </div>
       </nav>
 
