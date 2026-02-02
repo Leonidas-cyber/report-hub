@@ -3,6 +3,15 @@ import { supabase } from '@/integrations/supabase/client';
 // VAPID public key would need to be set up for production
 // For now, we'll use localStorage-based notifications as a fallback
 
+// Get current month name in Spanish
+function getCurrentMonthName(): string {
+  const months = [
+    'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+    'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+  ];
+  return months[new Date().getMonth()];
+}
+
 export async function requestNotificationPermission(): Promise<boolean> {
   if (!('Notification' in window)) {
     console.log('This browser does not support notifications');
@@ -50,10 +59,11 @@ export function scheduleLocalNotification() {
   // Check if it's the first week of the month (reminder time)
   const dayOfMonth = new Date().getDate();
   if (dayOfMonth <= 7) {
-    // Show a notification reminder
+    // Show a notification reminder with current month
     if (Notification.permission === 'granted') {
-      const notification = new Notification('Recordatorio de Informe', {
-        body: '¡No olvides enviar tu informe de servicio del mes pasado!',
+      const currentMonth = getCurrentMonthName();
+      const notification = new Notification('Recordatorio de Informe - Congregación Arrayanes', {
+        body: `¡No olvides enviar tu informe de servicio de ${currentMonth}!`,
         icon: '/favicon.ico',
         tag: 'informe-reminder'
       });
@@ -66,6 +76,25 @@ export function scheduleLocalNotification() {
       localStorage.setItem('lastNotificationDate', today);
     }
   }
+}
+
+// Send notification to all registered users (called from admin panel)
+export async function sendBroadcastNotification(message: string): Promise<boolean> {
+  if (Notification.permission === 'granted') {
+    const notification = new Notification('Congregación Arrayanes', {
+      body: message,
+      icon: '/favicon.ico',
+      tag: 'admin-notification'
+    });
+
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+    };
+    
+    return true;
+  }
+  return false;
 }
 
 export async function setupNotifications() {
