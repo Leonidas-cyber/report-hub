@@ -26,23 +26,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { toast } from 'sonner';
+import { ServiceReport } from '@/hooks/useServiceReports';
 import { 
-  ServiceReport, 
   RoleType, 
   ROLES, 
-  SUPERINTENDENTS,
   getRoleBadgeClass, 
   getRoleLabel 
 } from '@/types/report';
 import { Edit2, Check, X, Search, Filter } from 'lucide-react';
 
+interface Superintendent {
+  id: string;
+  name: string;
+  group_number: number;
+}
+
 interface ReportsTableProps {
   reports: ServiceReport[];
+  superintendents: Superintendent[];
   onUpdateReport: (id: string, updates: Partial<ServiceReport>) => void;
 }
 
-export function ReportsTable({ reports, onUpdateReport }: ReportsTableProps) {
+export function ReportsTable({ reports, superintendents, onUpdateReport }: ReportsTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
   const [filterParticipated, setFilterParticipated] = useState<string>('all');
@@ -75,13 +80,10 @@ export function ReportsTable({ reports, onUpdateReport }: ReportsTableProps) {
 
   const handleSaveEdit = () => {
     if (editingReport) {
-      const superintendent = SUPERINTENDENTS.find(s => s.id === editForm.superintendentId);
       onUpdateReport(editingReport.id, {
         ...editForm,
-        superintendentName: superintendent ? `${superintendent.name} Grupo ${superintendent.group}` : editingReport.superintendentName,
         status: 'edited',
       });
-      toast.success('Informe actualizado correctamente');
       setEditingReport(null);
     }
   };
@@ -268,9 +270,9 @@ export function ReportsTable({ reports, onUpdateReport }: ReportsTableProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {SUPERINTENDENTS.map((s) => (
+                  {superintendents.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
-                      {s.name} Grupo {s.group}
+                      {s.name} Grupo {s.group_number}
                     </SelectItem>
                   ))}
                 </SelectContent>

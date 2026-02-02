@@ -14,7 +14,110 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      admin_profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          full_name: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      service_reports: {
+        Row: {
+          bible_courses: number | null
+          full_name: string
+          hours: number | null
+          id: string
+          month: string
+          notes: string | null
+          participated: boolean
+          role: Database["public"]["Enums"]["service_role"]
+          status: Database["public"]["Enums"]["report_status"]
+          submitted_at: string
+          superintendent_id: string | null
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          bible_courses?: number | null
+          full_name: string
+          hours?: number | null
+          id?: string
+          month: string
+          notes?: string | null
+          participated?: boolean
+          role: Database["public"]["Enums"]["service_role"]
+          status?: Database["public"]["Enums"]["report_status"]
+          submitted_at?: string
+          superintendent_id?: string | null
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          bible_courses?: number | null
+          full_name?: string
+          hours?: number | null
+          id?: string
+          month?: string
+          notes?: string | null
+          participated?: boolean
+          role?: Database["public"]["Enums"]["service_role"]
+          status?: Database["public"]["Enums"]["report_status"]
+          submitted_at?: string
+          superintendent_id?: string | null
+          updated_at?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_reports_superintendent_id_fkey"
+            columns: ["superintendent_id"]
+            isOneToOne: false
+            referencedRelation: "superintendents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      superintendents: {
+        Row: {
+          created_at: string
+          group_number: number
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          group_number: number
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          group_number?: number
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +126,8 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      report_status: "pending" | "reviewed" | "edited"
+      service_role: "publicador" | "precursor_auxiliar" | "precursor_regular"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +254,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      report_status: ["pending", "reviewed", "edited"],
+      service_role: ["publicador", "precursor_auxiliar", "precursor_regular"],
+    },
   },
 } as const
