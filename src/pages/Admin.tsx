@@ -1,31 +1,19 @@
-import { Link } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
 import { StatCard } from '@/components/StatCard';
-import { ReportsTable } from '@/components/ReportsTable';
+import { ReportsGrid } from '@/components/ReportsGrid';
+import { AdminHeader } from '@/components/AdminHeader';
 import { exportToExcel } from '@/utils/exportExcel';
 import { useServiceReports } from '@/hooks/useServiceReports';
 import { useSuperintendents } from '@/hooks/useSuperintendents';
-import { useAuth } from '@/contexts/AuthContext';
-import { getCurrentMonth } from '@/types/report';
-import { 
-  Users, 
-  FileText, 
-  Clock, 
-  Download, 
-  FileSpreadsheet,
-  ArrowLeft,
-  RefreshCw,
-  LogOut
-} from 'lucide-react';
+import { getPreviousMonth } from '@/types/report';
+import { Users, FileText, Clock, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { useState } from 'react';
 
 const Admin = () => {
-  const { reports, loading, updateReport, refetch } = useServiceReports();
+  const { reports, loading, updateReport, deleteReport, refetch } = useServiceReports();
   const { superintendents } = useSuperintendents();
-  const { signOut } = useAuth();
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const currentMonth = getCurrentMonth();
+  const previousMonth = getPreviousMonth();
 
   const totalReports = reports.length;
   const participatedCount = reports.filter(r => r.participated).length;
@@ -41,12 +29,21 @@ const Admin = () => {
     }
   };
 
+  const handleDeleteReport = async (id: string) => {
+    try {
+      await deleteReport(id);
+      toast.success('Informe eliminado correctamente');
+    } catch {
+      toast.error('Error al eliminar el informe');
+    }
+  };
+
   const handleExportExcel = () => {
     if (reports.length === 0) {
       toast.error('No hay informes para exportar');
       return;
     }
-    exportToExcel(reports, `informes_${currentMonth.toLowerCase()}_${new Date().getFullYear()}`);
+    exportToExcel(reports, `informes_${previousMonth.toLowerCase()}_${new Date().getFullYear()}`);
     toast.success('Archivo Excel descargado correctamente');
   };
 
@@ -55,11 +52,6 @@ const Admin = () => {
     await refetch();
     setIsRefreshing(false);
     toast.success('Datos actualizados');
-  };
-
-  const handleSignOut = async () => {
-    await signOut();
-    toast.success('Sesión cerrada');
   };
 
   if (loading) {
@@ -75,58 +67,19 @@ const Admin = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="bg-card border-b border-border sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/">
-              <Button variant="ghost" size="sm">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Volver
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-xl font-bold text-foreground">Panel de Administración</h1>
-              <p className="text-sm text-muted-foreground">
-                Gestión y control de informes de la congregación
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-              Actualizar
-            </Button>
-            <Button
-              className="btn-excel"
-              onClick={handleExportExcel}
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              Exportar Excel
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSignOut}
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Salir
-            </Button>
-          </div>
-        </div>
-      </header>
+      {/* Header with welcome message and avatar */}
+      <AdminHeader 
+        onRefresh={handleRefresh}
+        onExport={handleExportExcel}
+        isRefreshing={isRefreshing}
+      />
 
       {/* Content */}
       <main className="max-w-7xl mx-auto px-4 py-8">
         {/* Título del mes */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-primary">
-            Informes de {currentMonth} {new Date().getFullYear()}
+            Informes de {previousMonth} {new Date().getFullYear()}
           </h2>
           <p className="text-muted-foreground mt-1">
             Datos actualizados en tiempo real
@@ -165,20 +118,18 @@ const Admin = () => {
           />
         </div>
 
-        {/* Tabla */}
+        {/* Grid de tarjetas */}
         <div className="bg-card rounded-xl border border-border p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-foreground">
               Listado de Informes
             </h3>
-            <p className="text-sm text-muted-foreground">
-              Haz clic en el ícono de editar para modificar un informe
-            </p>
           </div>
-          <ReportsTable 
+          <ReportsGrid 
             reports={reports} 
             superintendents={superintendents}
             onUpdateReport={handleUpdateReport}
+            onDeleteReport={handleDeleteReport}
           />
         </div>
       </main>

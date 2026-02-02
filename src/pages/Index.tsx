@@ -13,19 +13,21 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useSuperintendents } from '@/hooks/useSuperintendents';
+import { SuccessModal } from '@/components/SuccessModal';
 import { 
   ROLES, 
-  getCurrentMonth,
+  getPreviousMonth,
+  getPreviousMonthYear,
 } from '@/types/report';
 import type { RoleType } from '@/types/report';
 import { AlertTriangle, Send, Settings, FileText } from 'lucide-react';
 
 const Index = () => {
-  const currentMonth = getCurrentMonth();
-  const currentYear = new Date().getFullYear();
+  // Reports are always for the PREVIOUS month
+  const reportMonth = getPreviousMonth();
+  const reportYear = getPreviousMonthYear();
   const { superintendents, loading: loadingSuperintendents } = useSuperintendents();
 
   const [fullName, setFullName] = useState('');
@@ -36,6 +38,7 @@ const Index = () => {
   const [superintendentId, setSuperintendentId] = useState('');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const showHoursField = role === 'precursor_auxiliar' || role === 'precursor_regular';
 
@@ -43,22 +46,18 @@ const Index = () => {
     e.preventDefault();
 
     if (!fullName.trim()) {
-      toast.error('Por favor ingrese su nombre completo');
       return;
     }
 
     if (!role) {
-      toast.error('Por favor seleccione su rol');
       return;
     }
 
     if (participated === '') {
-      toast.error('Por favor indique si participó en la predicación');
       return;
     }
 
     if (!superintendentId) {
-      toast.error('Por favor seleccione su superintendente de servicio');
       return;
     }
 
@@ -73,13 +72,14 @@ const Index = () => {
         participated: participated === 'yes',
         superintendent_id: superintendentId,
         notes: notes.trim(),
-        month: currentMonth,
-        year: currentYear,
+        month: reportMonth,
+        year: reportYear,
       });
 
       if (error) throw error;
 
-      toast.success('¡Informe enviado correctamente!');
+      // Show success modal
+      setShowSuccess(true);
       
       // Reset form
       setFullName('');
@@ -91,7 +91,6 @@ const Index = () => {
       setNotes('');
     } catch (error) {
       console.error('Error submitting report:', error);
-      toast.error('Error al enviar el informe. Por favor intente de nuevo.');
     } finally {
       setIsSubmitting(false);
     }
@@ -131,7 +130,7 @@ const Index = () => {
               Informe Mensual de Servicio
             </CardTitle>
             <p className="text-sm text-muted-foreground">
-              El mes de servicio que se enviará corresponde a: <strong>{currentMonth}</strong>
+              El informe corresponde al mes de: <strong className="text-primary text-lg">{reportMonth} {reportYear}</strong>
             </p>
           </CardHeader>
 
@@ -140,7 +139,7 @@ const Index = () => {
             <div className="alert-reminder flex items-center gap-3 mb-6">
               <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0" />
               <div>
-                <strong>Recordatorio:</strong> Aún no has enviado tu informe correspondiente a {currentMonth}.
+                <strong>Recordatorio:</strong> Aún no has enviado tu informe correspondiente a {reportMonth}.
               </div>
             </div>
 
@@ -151,26 +150,27 @@ const Index = () => {
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Nombre Completo */}
               <div className="space-y-2">
-                <Label htmlFor="fullName">Nombre Completo:</Label>
+                <Label htmlFor="fullName" className="text-base">Nombre Completo:</Label>
                 <Input
                   id="fullName"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="Ingrese su nombre completo"
-                  className="input-field"
+                  className="input-field text-lg py-6"
+                  required
                 />
               </div>
 
               {/* Rol */}
               <div className="space-y-2">
-                <Label>Rol:</Label>
-                <Select value={role} onValueChange={(v) => setRole(v as RoleType)}>
-                  <SelectTrigger className="input-field">
+                <Label className="text-base">Rol:</Label>
+                <Select value={role} onValueChange={(v) => setRole(v as RoleType)} required>
+                  <SelectTrigger className="input-field text-lg py-6">
                     <SelectValue placeholder="Seleccione una opción" />
                   </SelectTrigger>
                   <SelectContent>
                     {ROLES.map((r) => (
-                      <SelectItem key={r.value} value={r.value}>
+                      <SelectItem key={r.value} value={r.value} className="text-lg py-3">
                         {r.label}
                       </SelectItem>
                     ))}
@@ -182,7 +182,7 @@ const Index = () => {
               {showHoursField && (
                 <>
                   <div className="space-y-2 animate-fade-in">
-                    <Label htmlFor="hours">Número de Horas:</Label>
+                    <Label htmlFor="hours" className="text-base">Número de Horas:</Label>
                     <Input
                       id="hours"
                       type="number"
@@ -190,12 +190,12 @@ const Index = () => {
                       value={hours}
                       onChange={(e) => setHours(e.target.value)}
                       placeholder="Ingrese el número de horas"
-                      className="input-field"
+                      className="input-field text-lg py-6"
                     />
                   </div>
 
                   <div className="space-y-2 animate-fade-in">
-                    <Label htmlFor="bibleCourses">Número de Cursos Bíblicos:</Label>
+                    <Label htmlFor="bibleCourses" className="text-base">Número de Cursos Bíblicos:</Label>
                     <Input
                       id="bibleCourses"
                       type="number"
@@ -203,7 +203,7 @@ const Index = () => {
                       value={bibleCourses}
                       onChange={(e) => setBibleCourses(e.target.value)}
                       placeholder="Ingrese el número de cursos bíblicos"
-                      className="input-field"
+                      className="input-field text-lg py-6"
                     />
                   </div>
                 </>
@@ -211,12 +211,12 @@ const Index = () => {
 
               {/* Participación */}
               <div className="space-y-3">
-                <Label>Participó en alguna faceta de la predicación durante el mes:</Label>
+                <Label className="text-base">Participó en alguna faceta de la predicación durante el mes:</Label>
                 <RadioGroup value={participated} onValueChange={setParticipated}>
                   <div className="flex items-start gap-3 p-4 rounded-lg border border-border hover:border-success/50 transition-colors">
                     <RadioGroupItem value="yes" id="participated-yes" className="mt-1" />
                     <div>
-                      <Label htmlFor="participated-yes" className="font-medium text-success cursor-pointer">
+                      <Label htmlFor="participated-yes" className="font-medium text-success cursor-pointer text-lg">
                         Sí, participé
                       </Label>
                       <p className="text-sm text-muted-foreground">
@@ -227,7 +227,7 @@ const Index = () => {
                   <div className="flex items-start gap-3 p-4 rounded-lg border border-border hover:border-destructive/50 transition-colors">
                     <RadioGroupItem value="no" id="participated-no" className="mt-1" />
                     <div>
-                      <Label htmlFor="participated-no" className="font-medium text-destructive cursor-pointer">
+                      <Label htmlFor="participated-no" className="font-medium text-destructive cursor-pointer text-lg">
                         No participé
                       </Label>
                       <p className="text-sm text-muted-foreground">
@@ -240,14 +240,14 @@ const Index = () => {
 
               {/* Superintendente */}
               <div className="space-y-2">
-                <Label>Superintendente de Servicio:</Label>
-                <Select value={superintendentId} onValueChange={setSuperintendentId} disabled={loadingSuperintendents}>
-                  <SelectTrigger className="input-field">
+                <Label className="text-base">Superintendente de Servicio:</Label>
+                <Select value={superintendentId} onValueChange={setSuperintendentId} disabled={loadingSuperintendents} required>
+                  <SelectTrigger className="input-field text-lg py-6">
                     <SelectValue placeholder="Seleccione una opción" />
                   </SelectTrigger>
                   <SelectContent>
                     {superintendents.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
+                      <SelectItem key={s.id} value={s.id} className="text-lg py-3">
                         {s.name} Grupo {s.group_number}
                       </SelectItem>
                     ))}
@@ -257,13 +257,13 @@ const Index = () => {
 
               {/* Notas */}
               <div className="space-y-2">
-                <Label htmlFor="notes">Notas:</Label>
+                <Label htmlFor="notes" className="text-base">Notas:</Label>
                 <Textarea
                   id="notes"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Agregue cualquier nota adicional (opcional)"
-                  className="input-field min-h-[100px] resize-none"
+                  className="input-field min-h-[100px] resize-none text-lg"
                 />
               </div>
 
@@ -272,16 +272,17 @@ const Index = () => {
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-8 py-3"
+                  size="lg"
+                  className="px-10 py-6 text-lg"
                 >
                   {isSubmitting ? (
                     <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary-foreground border-t-transparent mr-2" />
+                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-primary-foreground border-t-transparent mr-2" />
                       Enviando...
                     </>
                   ) : (
                     <>
-                      <Send className="h-4 w-4 mr-2" />
+                      <Send className="h-5 w-5 mr-2" />
                       Enviar Informe
                     </>
                   )}
@@ -291,6 +292,13 @@ const Index = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Success Modal */}
+      <SuccessModal 
+        open={showSuccess} 
+        onClose={() => setShowSuccess(false)} 
+        month={reportMonth}
+      />
     </div>
   );
 };
