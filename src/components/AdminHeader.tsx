@@ -24,6 +24,7 @@ import {
 import { ImageCropper } from '@/components/ImageCropper';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { sendPushNotificationToAll, isPushNotificationSupported } from '@/utils/pushNotifications';
 import { sendBroadcastNotification } from '@/utils/notifications';
 import { ArrowLeft, RefreshCw, FileSpreadsheet, LogOut, Camera, User, Bell, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -64,12 +65,29 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
     try {
       const previousMonth = getPreviousMonthName();
       const message = `¡Recuerda enviar tu informe de servicio de ${previousMonth}! - Congregación Arrayanes`;
-      const success = await sendBroadcastNotification(message);
       
-      if (success) {
-        toast.success('Notificación enviada correctamente');
+      // Try real push notifications first if supported
+      if (isPushNotificationSupported()) {
+        const result = await sendPushNotificationToAll(message);
+        if (result.success) {
+          toast.success(`Notificación enviada a ${result.sent || 0} dispositivos`);
+        } else {
+          // Fallback to local notification
+          const localSuccess = await sendBroadcastNotification(message);
+          if (localSuccess) {
+            toast.success('Notificación enviada (solo este dispositivo)');
+          } else {
+            toast.error('No se pudo enviar la notificación');
+          }
+        }
       } else {
-        toast.error('Las notificaciones no están habilitadas en este dispositivo');
+        // Fallback to local notification
+        const success = await sendBroadcastNotification(message);
+        if (success) {
+          toast.success('Notificación enviada (solo este dispositivo)');
+        } else {
+          toast.error('Las notificaciones no están habilitadas');
+        }
       }
     } catch {
       toast.error('Error al enviar la notificación');
