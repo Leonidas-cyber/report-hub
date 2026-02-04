@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Bell, BellOff, Check } from 'lucide-react';
 import { 
+  subscribeToPushNotifications,
+  getPushSubscriptionStatus,
+  isPushNotificationSupported
+} from '@/utils/pushNotifications';
+import { 
   requestNotificationPermission, 
   checkNotificationStatus,
   setupNotifications 
@@ -13,12 +18,39 @@ export function NotificationPrompt() {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    setStatus(checkNotificationStatus());
+    const checkStatus = async () => {
+      // Check real push notification status first
+      if (isPushNotificationSupported()) {
+        const pushStatus = await getPushSubscriptionStatus();
+        if (pushStatus === 'subscribed') {
+          setStatus('granted');
+          return;
+        } else if (pushStatus === 'unsupported') {
+          // Fall back to local notification check
+          setStatus(checkNotificationStatus());
+          return;
+        }
+      }
+      // Default to checking local notification status
+      setStatus(checkNotificationStatus());
+    };
+    checkStatus();
   }, []);
 
   const handleEnableNotifications = async () => {
     setIsLoading(true);
     try {
+      // Try real push notifications first
+      if (isPushNotificationSupported()) {
+        const success = await subscribeToPushNotifications();
+        if (success) {
+          setStatus('granted');
+          toast.success('¡Notificaciones activadas! Recibirás recordatorios cada mes.');
+          return;
+        }
+      }
+      
+      // Fallback to local notifications
       const success = await setupNotifications();
       if (success) {
         setStatus('granted');
