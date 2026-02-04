@@ -115,9 +115,20 @@ export async function unsubscribeFromPushNotifications(): Promise<boolean> {
 
 export async function sendPushNotificationToAll(message?: string): Promise<{ success: boolean; sent?: number; failed?: number; total?: number }> {
   try {
+    // 1. Verificar si hay una sesión activa antes de intentar enviar
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (!session) {
+      console.error('ERROR: No hay sesión activa. Debes iniciar sesión para enviar notificaciones.');
+      return { success: false };
+    }
+
+    console.log('Enviando notificación como usuario:', session.user.email);
+
     const previousMonth = getPreviousMonthName();
     const notificationMessage = message || `¡Recuerda enviar tu informe de servicio de ${previousMonth}! - Congregación Arrayanes`;
 
+    // 2. Invocar la función (Al haber verificado la sesión arriba, supabase.invoke usará el token automáticamente)
     const { data, error } = await supabase.functions.invoke('send-push-notification', {
       body: { message: notificationMessage },
     });
@@ -126,6 +137,8 @@ export async function sendPushNotificationToAll(message?: string): Promise<{ suc
       console.error('Error sending push notifications:', error);
       return { success: false };
     }
+
+    console.log('Respuesta del servidor:', data);
 
     return {
       success: true,
