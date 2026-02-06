@@ -2,6 +2,16 @@ import { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { BarChart3, Calculator, Trash2, Users } from 'lucide-react';
 import { toast } from 'sonner';
@@ -28,6 +38,8 @@ export function AttendanceStats() {
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [recordToDelete, setRecordToDelete] = useState<AttendanceRecord | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const months = [
     { value: 'enero', label: 'Enero' },
@@ -52,8 +64,8 @@ export function AttendanceStats() {
   }, []);
 
   const calculateStats = useCallback((data: AttendanceRecord[]) => {
-    const weekday = data.filter(r => r.meeting_type === 'entre_semana');
-    const weekend = data.filter(r => r.meeting_type === 'fin_semana');
+    const weekday = data.filter((r) => r.meeting_type === 'entre_semana');
+    const weekend = data.filter((r) => r.meeting_type === 'fin_semana');
 
     const weekdaySum = weekday.reduce((sum, r) => sum + r.attendees, 0);
     const weekendSum = weekend.reduce((sum, r) => sum + r.attendees, 0);
@@ -63,7 +75,7 @@ export function AttendanceStats() {
       weekdayAvg: weekday.length > 0 ? Math.round(weekdaySum / weekday.length) : 0,
       weekendAvg: weekend.length > 0 ? Math.round(weekendSum / weekend.length) : 0,
       totalMonthly: total,
-      generalAvg: data.length > 0 ? Math.round(total / data.length) : 0
+      generalAvg: data.length > 0 ? Math.round(total / data.length) : 0,
     });
   }, []);
 
@@ -88,34 +100,36 @@ export function AttendanceStats() {
   }, [selectedMonth, selectedYear, calculateStats]);
 
   useEffect(() => {
-    fetchRecords();
+    void fetchRecords();
   }, [fetchRecords]);
 
-  const handleDeleteAttendance = async (record: AttendanceRecord) => {
+  const formatAttendanceLabel = (record: AttendanceRecord) => {
     const dateLabel = new Date(record.date).toLocaleDateString('es-MX', {
       day: 'numeric',
       month: 'short',
-      year: 'numeric'
+      year: 'numeric',
     });
 
-    const confirmed = window.confirm(
-      `¿Eliminar este registro de asistencia?\n\n${
-        record.meeting_type === 'entre_semana' ? 'Entre semana' : 'Fin de semana'
-      } · ${dateLabel} · ${record.attendees} asistentes`
-    );
+    return `${record.meeting_type === 'entre_semana' ? 'Entre semana' : 'Fin de semana'} · ${dateLabel} · ${record.attendees} asistentes`;
+  };
 
-    if (!confirmed) return;
+  const openDeleteDialog = (record: AttendanceRecord) => {
+    setRecordToDelete(record);
+    setIsDeleteDialogOpen(true);
+  };
 
-    setDeletingId(record.id);
+  const confirmDeleteAttendance = async () => {
+    if (!recordToDelete) return;
+
+    setDeletingId(recordToDelete.id);
     try {
-      const { error } = await supabase
-        .from('attendance_records')
-        .delete()
-        .eq('id', record.id);
+      const { error } = await supabase.from('attendance_records').delete().eq('id', recordToDelete.id);
 
       if (error) throw error;
 
       toast.success('Registro de asistencia eliminado');
+      setIsDeleteDialogOpen(false);
+      setRecordToDelete(null);
       await fetchRecords();
     } catch (error) {
       console.error('Error deleting attendance:', error);
@@ -143,8 +157,10 @@ export function AttendanceStats() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {months.map(m => (
-                    <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                  {months.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>
+                      {m.label}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -156,13 +172,15 @@ export function AttendanceStats() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {years.map(y => (
-                    <SelectItem key={y} value={y}>{y}</SelectItem>
+                  {years.map((y) => (
+                    <SelectItem key={y} value={y}>
+                      {y}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <Button variant="outline" onClick={fetchRecords}>
+            <Button variant="outline" onClick={() => void fetchRecords()}>
               <Calculator className="h-4 w-4 mr-2" />
               Calcular Promedios
             </Button>
@@ -171,9 +189,7 @@ export function AttendanceStats() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="border-primary/20 bg-primary/5">
               <CardContent className="pt-6 text-center">
-                <h4 className="font-semibold text-sm text-muted-foreground mb-2">
-                  Reuniones de Entre Semana
-                </h4>
+                <h4 className="font-semibold text-sm text-muted-foreground mb-2">Reuniones de Entre Semana</h4>
                 <p className="text-3xl font-bold text-primary">{stats.weekdayAvg}</p>
                 <p className="text-xs text-muted-foreground mt-1">Promedio de asistentes</p>
               </CardContent>
@@ -181,9 +197,7 @@ export function AttendanceStats() {
 
             <Card className="border-success/20 bg-success/5">
               <CardContent className="pt-6 text-center">
-                <h4 className="font-semibold text-sm text-muted-foreground mb-2">
-                  Reuniones de Fin de Semana
-                </h4>
+                <h4 className="font-semibold text-sm text-muted-foreground mb-2">Reuniones de Fin de Semana</h4>
                 <p className="text-3xl font-bold text-green-600">{stats.weekendAvg}</p>
                 <p className="text-xs text-muted-foreground mt-1">Promedio de asistentes</p>
               </CardContent>
@@ -191,9 +205,7 @@ export function AttendanceStats() {
 
             <Card className="border-info/20 bg-info/5">
               <CardContent className="pt-6 text-center">
-                <h4 className="font-semibold text-sm text-muted-foreground mb-2">
-                  Total Mensual
-                </h4>
+                <h4 className="font-semibold text-sm text-muted-foreground mb-2">Total Mensual</h4>
                 <p className="text-3xl font-bold text-blue-600">{stats.totalMonthly}</p>
                 <p className="text-xs text-muted-foreground mt-1">Total de asistentes</p>
               </CardContent>
@@ -201,9 +213,7 @@ export function AttendanceStats() {
 
             <Card className="border-warning/20 bg-warning/5">
               <CardContent className="pt-6 text-center">
-                <h4 className="font-semibold text-sm text-muted-foreground mb-2">
-                  Promedio General
-                </h4>
+                <h4 className="font-semibold text-sm text-muted-foreground mb-2">Promedio General</h4>
                 <p className="text-3xl font-bold text-amber-600">{stats.generalAvg}</p>
                 <p className="text-xs text-muted-foreground mt-1">Promedio de todas las reuniones</p>
               </CardContent>
@@ -227,13 +237,13 @@ export function AttendanceStats() {
                     </tr>
                   </thead>
                   <tbody>
-                    {records.map(record => (
+                    {records.map((record) => (
                       <tr key={record.id} className="border-b hover:bg-muted/50">
                         <td className="py-2 px-3">
                           {new Date(record.date).toLocaleDateString('es-ES', {
                             weekday: 'short',
                             day: 'numeric',
-                            month: 'short'
+                            month: 'short',
                           })}
                         </td>
                         <td className="py-2 px-3">
@@ -244,7 +254,7 @@ export function AttendanceStats() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDeleteAttendance(record)}
+                            onClick={() => openDeleteDialog(record)}
                             disabled={deletingId === record.id}
                             className="text-destructive hover:text-destructive"
                             title="Eliminar registro"
@@ -262,6 +272,38 @@ export function AttendanceStats() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar registro de asistencia?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <span>Esta acción no se puede deshacer.</span>
+              {recordToDelete && <span className="block font-medium text-foreground">{formatAttendanceLabel(recordToDelete)}</span>}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                if (deletingId) return;
+                setRecordToDelete(null);
+              }}
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault();
+                if (!deletingId) void confirmDeleteAttendance();
+              }}
+              disabled={Boolean(deletingId)}
+            >
+              {deletingId ? 'Eliminando...' : 'Sí, eliminar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
