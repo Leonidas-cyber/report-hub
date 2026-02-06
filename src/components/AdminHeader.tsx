@@ -103,76 +103,101 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  const fetchProfile = async () => {
-    if (!user) return;
+const fetchProfile = async () => {
+  if (!user) return;
 
-    const { data, error } = await supabase
-      .from('admin_profiles')
-      .select('full_name, avatar_url')
-      .eq('user_id', user.id)
-      .maybeSingle();
+  const { data, error } = await supabase
+    .from('admin_profiles')
+    .select('full_name, avatar_url')
+    .eq('user_id', user.id)
+    .maybeSingle();
 
-    if (error) {
-      console.error('Error fetching profile:', error);
-      return;
-    }
+  if (error) {
+    console.error('Error fetching profile:', error);
+    return;
+  }
 
-    // Si no existe perfil (usuarios viejos), créalo para no romper avatar
-    if (!data) {
-      const fallbackName = user.user_metadata?.full_name ?? null;
-      const { error: createErr } = await supabase
-        .from('admin_profiles')
-        .upsert(
-          { user_id: user.id, full_name: fallbackName, avatar_url: null },
-          { onConflict: 'user_id' }
-        );
-
-      if (createErr) {
-        console.error('Error creating missing profile:', createErr);
-      }
-
-      setProfile({ full_name: fallbackName, avatar_url: null });
-      return;
-    }
-
+  if (data) {
     setProfile(data);
-  };
+    return;
+  }
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  // Si no existe perfil, lo creamos
+  const defaultName =
+    user.user_metadata?.full_name ||
+    user.email?.split('@')[0] ||
+    'Administrador';
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setSelectedImage(reader.result as string);
-      setCropperOpen(true);
-    };
-    reader.readAsDataURL(file);
-    // Reset input so same file can be selected again
-    event.target.value = '';
-  };
+  const { data: created, error: createError } = await supabase
+    .from('admin_profiles')
+    .upsert(
+      { user_id: user.id, full_name: defaultName },
+      { onConflict: 'user_id' }
+    )
+    .select('full_name, avatar_url')
+    .single();
 
-  const handleCroppedImage = async (croppedBlob: Blob) => {
-    if (!user) return;
+  if (createError) {
+    console.error('Error creating profile:', createError);
+    return;
+  }
 
-    setUploading(true);
-    try {
-      const filePath = `${user.id}/avatar.jpg`;
+  setProfile(created);
+};
 
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, croppedBlob, { 
-          upsert: true,
-          contentType: 'image/jpeg'
-        });
+const handleCroppedImage = async (croppedBlob: Blob) => {
+  if (!user) return;
 
-      if (uploadError) throw uploadError;
+  setUploading(true);
+  try {
+    const filePath = `${user.id}/avatar.jpg`;
 
-      // Get public URL with cache buster
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filePath, croppedBlob, {
+        upsert: true,
+        contentType: 'image/jpeg',
+      });
 
+    if (uploadError) throw uploadError;
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from('avatars').getPublicUrl(filePath);
+
+    const urlWithCacheBuster = `${publicUrl}?t=${Date.now()}`;
+
+    const fullName =
+      profile?.full_name ||
+      user.user_metadata?.full_name ||
+      user.email?.split('@')[0] ||
+      'Administrador';
+
+    // Upsert (crea o actualiza)
+    const { data: savedProfile, error: profileError } = await supabase
+      .from('admin_profiles')
+      .upsert(
+        {
+          user_id: user.id,
+          full_name: fullName,
+          avatar_url: urlWithCacheBuster,
+        },
+        { onConflict: 'user_id' }
+      )
+      .select('full_name, avatar_url')
+      .single();
+
+    if (profileError) throw profileError;
+
+    setProfile(savedProfile); // <- importante (no usar prev ? ... : null)
+    toast.success('Foto de perfil actualizada');
+  } catch (error: any) {
+    console.error('Error uploading avatar:', error);
+    toast.error(error?.message || 'Error al subir la foto');
+  } finally {
+    setUploading(false);
+  }
+};
       const urlWithCacheBuster = `${publicUrl}?t=${Date.now()}`;
 
       // Crear o actualizar perfil (evita fallo si no existe fila)
