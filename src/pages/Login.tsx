@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,13 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false);
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('unauthorized') === '1') {
+      toast.error('Tu cuenta no tiene permisos de administrador.');
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,14 +43,19 @@ export function LoginPage() {
           setLoading(false);
           return;
         }
+
         const { error } = await signUp(email, password, fullName);
         if (error) {
-          toast.error(error.message);
+          if (error.message?.toLowerCase().includes('no está autorizado')) {
+            toast.error('Este correo no está autorizado para crear cuenta de administrador.');
+          } else {
+            toast.error(error.message);
+          }
         } else {
           toast.success('¡Cuenta creada! Revisa tu correo para confirmar.');
         }
       }
-    } catch (error) {
+    } catch {
       toast.error('Ocurrió un error inesperado');
     } finally {
       setLoading(false);
@@ -71,7 +83,7 @@ export function LoginPage() {
             <CardDescription>
               {isLogin 
                 ? 'Accede al panel de administración' 
-                : 'Regístrate como administrador'}
+                : 'Registro restringido a correos autorizados'}
             </CardDescription>
           </CardHeader>
           <CardContent>

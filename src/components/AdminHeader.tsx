@@ -100,6 +100,7 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
     if (user) {
       fetchProfile();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const fetchProfile = async () => {
@@ -116,10 +117,25 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
       return;
     }
 
-    setProfile(data ?? {
-      full_name: user.user_metadata?.full_name ?? null,
-      avatar_url: null,
-    });
+    // Si no existe perfil (usuarios viejos), créalo para no romper avatar
+    if (!data) {
+      const fallbackName = user.user_metadata?.full_name ?? null;
+      const { error: createErr } = await supabase
+        .from('admin_profiles')
+        .upsert(
+          { user_id: user.id, full_name: fallbackName, avatar_url: null },
+          { onConflict: 'user_id' }
+        );
+
+      if (createErr) {
+        console.error('Error creating missing profile:', createErr);
+      }
+
+      setProfile({ full_name: fallbackName, avatar_url: null });
+      return;
+    }
+
+    setProfile(data);
   };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -159,20 +175,25 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
 
       const urlWithCacheBuster = `${publicUrl}?t=${Date.now()}`;
 
-      // Update/insert profile (si no existe fila, la crea)
-      const { data: updatedProfile, error: updateError } = await supabase
+      // Crear o actualizar perfil (evita fallo si no existe fila)
+      const { error: upsertError } = await supabase
         .from('admin_profiles')
-        .upsert({
-          user_id: user.id,
-          full_name: profile?.full_name ?? user.user_metadata?.full_name ?? null,
-          avatar_url: urlWithCacheBuster,
-        }, { onConflict: 'user_id' })
-        .select('full_name, avatar_url')
-        .single();
+        .upsert(
+          {
+            user_id: user.id,
+            full_name: profile?.full_name ?? user.user_metadata?.full_name ?? null,
+            avatar_url: urlWithCacheBuster,
+          },
+          { onConflict: 'user_id' }
+        );
 
-      if (updateError) throw updateError;
+      if (upsertError) throw upsertError;
 
-      setProfile(updatedProfile);
+      setProfile(prev => ({
+        full_name: prev?.full_name ?? user.user_metadata?.full_name ?? null,
+        avatar_url: urlWithCacheBuster,
+      }));
+
       toast.success('Foto de perfil actualizada');
     } catch (error) {
       console.error('Error uploading avatar:', error);
