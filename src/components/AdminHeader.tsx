@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -40,17 +40,34 @@ interface AdminHeaderProps {
   isRefreshing: boolean;
 }
 
+function getReadableError(err: unknown): string {
+  if (!err) return 'Error desconocido';
+  if (typeof err === 'string') return err;
+  if (typeof err === 'object' && err !== null) {
+    const e = err as Record<string, unknown>;
+    const msg = e.message ?? e.error_description ?? e.details ?? e.hint;
+    if (typeof msg === 'string') return msg;
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return 'Error no legible';
+    }
+  }
+  return 'Error no legible';
+}
+
 export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing }: AdminHeaderProps) {
   const { user, signOut } = useAuth();
 
   const [profile, setProfile] = useState<AdminProfile | null>(null);
   const [uploading, setUploading] = useState(false);
   const [sendingNotification, setSendingNotification] = useState(false);
+  const [avatarBust, setAvatarBust] = useState<number>(Date.now());
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    if (user) {
-      fetchProfile();
-    }
+    if (user) void fetchProfile();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
@@ -84,7 +101,8 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
       .maybeSingle();
 
     if (error) {
-      console.error('Error fetching profile:', error);
+      console.error('fetchProfile error:', error);
+      toast.error(`No se pudo leer perfil: ${getReadableError(error)}`);
       return;
     }
 
@@ -93,7 +111,7 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
       return;
     }
 
-    // Si no existe perfil, lo creamos
+    // Si no existe perfil, créalo
     const defaultName =
       user.user_metadata?.full_name ||
       user.email?.split('@')[0] ||
@@ -109,14 +127,15 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
       .single();
 
     if (createError) {
-      console.error('Error creating profile:', createError);
+      console.error('create profile error:', createError);
+      toast.error(`No se pudo crear perfil: ${getReadableError(createError)}`);
       return;
     }
 
     setProfile(created);
   };
 
-  const uploadAvatar = async (fileOrBlob: Blob) => {
+  const uploadAvatar = async (file: File) => {
     if (!user) {
       toast.error('Sesión no disponible');
       return;
@@ -124,27 +143,45 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
 
     setUploading(true);
     try {
-      if (!(fileOrBlob instanceof Blob)) {
-        throw new Error('No se generó una imagen válida');
+      // Validar sesión real
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.user?.id) {
+        throw new Error('No hay sesión activa para subir imagen');
       }
 
-      const filePath = `${user.id}/avatar.jpg`;
+      const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+      if (!allowed.includes(file.type)) {
+        throw new Error('Formato no permitido. Usa JPG, PNG o WEBP.');
+      }
+
+      // Mantener extensión real
+      const ext = file.type === 'image/png'
+        ? 'png'
+        : file.type === 'image/webp'
+          ? 'webp'
+          : 'jpg';
+
+      const filePath = `${session.user.id}/avatar.${ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(filePath, fileOrBlob, {
+        .upload(filePath, file, {
           upsert: true,
-          contentType: 'image/jpeg',
+          contentType: file.type,
           cacheControl: '3600',
         });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('storage upload error:', uploadError);
+        throw uploadError;
+      }
 
       const {
         data: { publicUrl },
       } = supabase.storage.from('avatars').getPublicUrl(filePath);
-
-      const avatarUrl = `${publicUrl}?t=${Date.now()}`;
 
       const fullName =
         profile?.full_name ||
@@ -155,39 +192,53 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
       const { data: saved, error: profileError } = await supabase
         .from('admin_profiles')
         .upsert(
-          { user_id: user.id, full_name: fullName, avatar_url: avatarUrl },
+          {
+            user_id: session.user.id,
+            full_name: fullName,
+            avatar_url: publicUrl, // URL limpia en BD
+          },
           { onConflict: 'user_id' }
         )
         .select('full_name, avatar_url')
         .single();
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error('profile upsert error:', profileError);
+        throw profileError;
+      }
 
       setProfile(saved);
+      setAvatarBust(Date.now()); // cache bust en UI
       toast.success('Foto de perfil actualizada');
-    } catch (e: any) {
-      console.error('avatar upload error:', e);
-      toast.error(e?.message || 'No se pudo subir la foto');
+    } catch (err) {
+      const msg = getReadableError(err);
+      console.error('uploadAvatar fatal error:', err);
+      toast.error(`No se pudo subir la foto: ${msg}`);
     } finally {
       setUploading(false);
     }
   };
 
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
       toast.error('Selecciona una imagen válida');
+      event.target.value = '';
       return;
     }
 
+    // 5 MB max
     if (file.size > 5 * 1024 * 1024) {
       toast.error('La imagen no debe superar 5MB');
+      event.target.value = '';
       return;
     }
 
     await uploadAvatar(file);
+
+    // Limpiar para permitir seleccionar el mismo archivo otra vez
     event.target.value = '';
   };
 
@@ -232,6 +283,10 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
     .substring(0, 2)
     .toUpperCase();
 
+  const avatarSrc = profile?.avatar_url
+    ? `${profile.avatar_url}${profile.avatar_url.includes('?') ? '&' : '?'}v=${avatarBust}`
+    : undefined;
+
   return (
     <header className="bg-card border-b border-border sticky top-0 z-10">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
@@ -240,9 +295,9 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
           <div className="flex items-center gap-3 sm:gap-4 min-w-0">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="relative group flex-shrink-0" type="button">
+                <button className="relative group flex-shrink-0" type="button" aria-label="Cambiar foto">
                   <Avatar className="h-10 w-10 sm:h-14 sm:w-14 border-2 border-primary/20 hover:border-primary transition-colors">
-                    <AvatarImage src={profile?.avatar_url || undefined} alt={displayName} />
+                    <AvatarImage src={avatarSrc} alt={displayName} />
                     <AvatarFallback className="bg-primary/10 text-primary text-sm sm:text-lg font-semibold">
                       {initials}
                     </AvatarFallback>
@@ -257,18 +312,15 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
                 <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
                 <DropdownMenuSeparator />
 
-                <DropdownMenuItem asChild>
-                  <label className="cursor-pointer flex items-center">
-                    <Camera className="h-4 w-4 mr-2" />
-                    {uploading ? 'Subiendo...' : 'Cambiar foto'}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileSelect}
-                      className="hidden"
-                      disabled={uploading}
-                    />
-                  </label>
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault(); // evita que cierre antes de abrir file picker
+                    if (!uploading) fileInputRef.current?.click();
+                  }}
+                  className="cursor-pointer"
+                >
+                  <Camera className="h-4 w-4 mr-2" />
+                  {uploading ? 'Subiendo...' : 'Cambiar foto'}
                 </DropdownMenuItem>
 
                 <DropdownMenuItem className="flex items-center">
@@ -277,6 +329,16 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+
+            {/* input oculto real */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/webp"
+              onChange={handleFileSelect}
+              className="hidden"
+              disabled={uploading}
+            />
 
             <div className="min-w-0">
               <h1 className="text-lg sm:text-2xl font-bold text-foreground truncate">
