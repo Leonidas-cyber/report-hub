@@ -7,6 +7,20 @@ interface ProtectedRouteProps {
   children: ReactNode;
 }
 
+const withTimeout = async <T,>(promise: Promise<T>, ms = 7000): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('timeout')), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+};
+
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
   const [checkingAccess, setCheckingAccess] = useState(true);
@@ -14,6 +28,13 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   useEffect(() => {
     let mounted = true;
+
+    const hardStop = setTimeout(() => {
+      if (mounted) {
+        console.warn('ProtectedRoute tardó demasiado; liberando check de acceso.');
+        setCheckingAccess(false);
+      }
+    }, 9000);
 
     const checkAdminAccess = async () => {
       if (!user?.email) {
@@ -26,9 +47,11 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
       try {
         // Cast a any para evitar fricción de tipos hasta regenerar types.ts
-        const { data, error } = await (supabase as any).rpc('is_admin_email', {
-          p_email: user.email,
-        });
+        const { data, error } = await withTimeout(
+          (supabase as any).rpc('is_admin_email', {
+            p_email: user.email,
+          }),
+        );
 
         if (!mounted) return;
 
@@ -44,17 +67,22 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
         } else {
           setIsAllowed(Boolean(data));
         }
+      } catch (err) {
+        console.error('Timeout/error checking admin access:', err);
+        if (!mounted) return;
+        setIsAllowed(false);
       } finally {
         if (mounted) setCheckingAccess(false);
       }
     };
 
     if (!loading) {
-      checkAdminAccess();
+      void checkAdminAccess();
     }
 
     return () => {
       mounted = false;
+      clearTimeout(hardStop);
     };
   }, [user, loading]);
 

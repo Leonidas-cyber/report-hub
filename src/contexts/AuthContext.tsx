@@ -16,6 +16,20 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const withTimeout = async <T,>(promise: Promise<T>, ms = 7000): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('timeout')), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -32,41 +46,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setIsAdmin(true);
 
-    const { data, error } = await supabase
-      .from('admin_profiles')
-      .select('role')
-      .eq('user_id', currentUser.id)
-      .maybeSingle();
+    try {
+      const { data, error } = await withTimeout(
+        supabase
+          .from('admin_profiles')
+          .select('role')
+          .eq('user_id', currentUser.id)
+          .maybeSingle(),
+      );
 
-    if (error) {
-      // Si la columna role todavía no existe en BD, no rompemos sesión
-      if (!/column .*role.* does not exist/i.test(error.message || '')) {
-        console.warn('No se pudo cargar rol de admin:', error.message);
+      if (error) {
+        // Si la columna role todavía no existe en BD, no rompemos sesión
+        if (!/column .*role.* does not exist/i.test(error.message || '')) {
+          console.warn('No se pudo cargar rol de admin:', error.message);
+        }
+        setIsSuperAdmin(false);
+        return;
       }
-      setIsSuperAdmin(false);
-      return;
-    }
 
-    setIsSuperAdmin((data as any)?.role === 'super_admin');
+      setIsSuperAdmin((data as any)?.role === 'super_admin');
+    } catch (err) {
+      console.warn('Timeout/error cargando rol de admin:', err);
+      setIsSuperAdmin(false);
+    }
   }, []);
 
   useEffect(() => {
+    let mounted = true;
+
+    // Failsafe: evita spinner infinito por cualquier error no controlado
+    const hardStop = setTimeout(() => {
+      if (mounted) {
+        console.warn('Auth init tardó demasiado; liberando loading por failsafe.');
+        setLoading(false);
+      }
+    }, 9000);
+
     const init = async () => {
-      const {
-        data: { session: currentSession },
-      } = await supabase.auth.getSession();
+      try {
+        const {
+          data: { session: currentSession },
+        } = await withTimeout(supabase.auth.getSession());
 
-      setSession(currentSession);
-      setUser(currentSession?.user ?? null);
+        if (!mounted) return;
 
-      if (currentSession?.user) {
-        await loadAdminFlags(currentSession.user);
-      } else {
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
+
+        if (currentSession?.user) {
+          await loadAdminFlags(currentSession.user);
+        } else {
+          setIsAdmin(false);
+          setIsSuperAdmin(false);
+        }
+      } catch (err) {
+        console.error('Error inicializando AuthContext:', err);
+        if (!mounted) return;
+        setSession(null);
+        setUser(null);
         setIsAdmin(false);
         setIsSuperAdmin(false);
+      } finally {
+        if (mounted) setLoading(false);
       }
-
-      setLoading(false);
     };
 
     void init();
@@ -74,20 +116,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
-      setSession(currentSession);
-      setUser(currentSession?.user ?? null);
+      if (!mounted) return;
 
-      if (currentSession?.user) {
-        await loadAdminFlags(currentSession.user);
-      } else {
-        setIsAdmin(false);
-        setIsSuperAdmin(false);
+      try {
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
+
+        if (currentSession?.user) {
+          await loadAdminFlags(currentSession.user);
+        } else {
+          setIsAdmin(false);
+          setIsSuperAdmin(false);
+        }
+      } catch (err) {
+        console.error('Error en onAuthStateChange:', err);
+      } finally {
+        if (mounted) setLoading(false);
       }
-
-      setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      clearTimeout(hardStop);
+      subscription.unsubscribe();
+    };
   }, [loadAdminFlags]);
 
   const signIn = async (email: string, password: string) => {
