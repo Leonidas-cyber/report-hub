@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { ImageCropper } from '@/components/ImageCropper';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { sendPushNotificationToAll, isPushNotificationSupported } from '@/utils/pushNotifications';
@@ -63,6 +64,10 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
   const [uploading, setUploading] = useState(false);
   const [sendingNotification, setSendingNotification] = useState(false);
   const [avatarBust, setAvatarBust] = useState<number>(Date.now());
+
+  // Cropper state
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -135,7 +140,7 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
     setProfile(created);
   };
 
-  const uploadAvatar = async (file: File) => {
+  const uploadAvatar = async (fileOrBlob: File | Blob) => {
     if (!user) {
       toast.error('Sesión no disponible');
       return;
@@ -152,15 +157,16 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
         throw new Error('No hay sesión activa para subir imagen');
       }
 
+      const mimeType = fileOrBlob.type || 'image/jpeg';
       const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-      if (!allowed.includes(file.type)) {
+      if (!allowed.includes(mimeType)) {
         throw new Error('Formato no permitido. Usa JPG, PNG o WEBP.');
       }
 
       // Mantener extensión real
-      const ext = file.type === 'image/png'
+      const ext = mimeType === 'image/png'
         ? 'png'
-        : file.type === 'image/webp'
+        : mimeType === 'image/webp'
           ? 'webp'
           : 'jpg';
 
@@ -168,9 +174,9 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(filePath, file, {
+        .upload(filePath, fileOrBlob, {
           upsert: true,
-          contentType: file.type,
+          contentType: mimeType,
           cacheControl: '3600',
         });
 
@@ -229,17 +235,35 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
       return;
     }
 
-    // 5 MB max
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('La imagen no debe superar 5MB');
+    // 8 MB max antes de recortar
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error('La imagen no debe superar 8MB');
       event.target.value = '';
       return;
     }
 
-    await uploadAvatar(file);
+    // Abre cropper para que el usuario elija cómo se verá su foto
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSelectedImage(reader.result as string);
+      setCropperOpen(true);
+    };
+    reader.readAsDataURL(file);
 
     // Limpiar para permitir seleccionar el mismo archivo otra vez
     event.target.value = '';
+  };
+
+  const handleCropComplete = async (croppedBlob: Blob) => {
+    // El cropper ya devuelve JPEG cuadrado/circular visual
+    await uploadAvatar(croppedBlob);
+    setCropperOpen(false);
+    setSelectedImage('');
+  };
+
+  const handleCloseCropper = () => {
+    setCropperOpen(false);
+    setSelectedImage('');
   };
 
   const handleSendNotification = async () => {
@@ -288,143 +312,153 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
     : undefined;
 
   return (
-    <header className="bg-card border-b border-border sticky top-0 z-10">
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
-        {/* Welcome */}
-        <div className="flex items-center justify-between mb-3 sm:mb-4 pb-3 sm:pb-4 border-b border-border">
-          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="relative group flex-shrink-0" type="button" aria-label="Cambiar foto">
-                  <Avatar className="h-10 w-10 sm:h-14 sm:w-14 border-2 border-primary/20 hover:border-primary transition-colors">
-                    <AvatarImage src={avatarSrc} alt={displayName} />
-                    <AvatarFallback className="bg-primary/10 text-primary text-sm sm:text-lg font-semibold">
-                      {initials}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <Camera className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
-                  </div>
-                </button>
-              </DropdownMenuTrigger>
+    <>
+      <header className="bg-card border-b border-border sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
+          {/* Welcome */}
+          <div className="flex items-center justify-between mb-3 sm:mb-4 pb-3 sm:pb-4 border-b border-border">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="relative group flex-shrink-0" type="button" aria-label="Cambiar foto">
+                    <Avatar className="h-10 w-10 sm:h-14 sm:w-14 border-2 border-primary/20 hover:border-primary transition-colors">
+                      <AvatarImage src={avatarSrc} alt={displayName} />
+                      <AvatarFallback className="bg-primary/10 text-primary text-sm sm:text-lg font-semibold">
+                        {initials}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <Camera className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                    </div>
+                  </button>
+                </DropdownMenuTrigger>
 
-              <DropdownMenuContent align="start" className="w-56 bg-popover">
-                <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
-                <DropdownMenuSeparator />
+                <DropdownMenuContent align="start" className="w-56 bg-popover">
+                  <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
 
-                <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault(); // evita que cierre antes de abrir file picker
-                    if (!uploading) fileInputRef.current?.click();
-                  }}
-                  className="cursor-pointer"
-                >
-                  <Camera className="h-4 w-4 mr-2" />
-                  {uploading ? 'Subiendo...' : 'Cambiar foto'}
-                </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={(e) => {
+                      e.preventDefault(); // evita que cierre antes de abrir file picker
+                      if (!uploading) fileInputRef.current?.click();
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <Camera className="h-4 w-4 mr-2" />
+                    {uploading ? 'Subiendo...' : 'Cambiar foto'}
+                  </DropdownMenuItem>
 
-                <DropdownMenuItem className="flex items-center">
-                  <User className="h-4 w-4 mr-2" />
-                  <span className="truncate">{user?.email}</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  <DropdownMenuItem className="flex items-center">
+                    <User className="h-4 w-4 mr-2" />
+                    <span className="truncate">{user?.email}</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
-            {/* input oculto real */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/jpg,image/png,image/webp"
-              onChange={handleFileSelect}
-              className="hidden"
-              disabled={uploading}
-            />
+              {/* input oculto real */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp"
+                onChange={handleFileSelect}
+                className="hidden"
+                disabled={uploading}
+              />
 
-            <div className="min-w-0">
-              <h1 className="text-lg sm:text-2xl font-bold text-foreground truncate">
-                ¡Bienvenido, {displayName}!
-              </h1>
-              <p className="text-xs sm:text-base text-muted-foreground hidden sm:block">
-                Gestiona los informes de la congregación
-              </p>
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-2xl font-bold text-foreground truncate">
+                  ¡Bienvenido, {displayName}!
+                </h1>
+                <p className="text-xs sm:text-base text-muted-foreground hidden sm:block">
+                  Gestiona los informes de la congregación
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center justify-between gap-2 sm:gap-4">
+            <Link to="/">
+              <Button variant="ghost" size="sm" className="px-2 sm:px-3">
+                <ArrowLeft className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Volver</span>
+              </Button>
+            </Link>
+
+            <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSendNotification}
+                disabled={sendingNotification}
+                className="px-2 sm:px-3"
+              >
+                <Bell className={`h-4 w-4 sm:mr-2 ${sendingNotification ? 'animate-pulse' : ''}`} />
+                <span className="hidden sm:inline">
+                  {sendingNotification ? 'Enviando...' : 'Recordatorio'}
+                </span>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onRefresh}
+                disabled={isRefreshing}
+                className="px-2 sm:px-3"
+              >
+                <RefreshCw className={`h-4 w-4 sm:mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Actualizar</span>
+              </Button>
+
+              <Button className="btn-excel px-2 sm:px-3" onClick={onExport} size="sm">
+                <FileSpreadsheet className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Excel</span>
+              </Button>
+
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm" className="px-2 sm:px-3">
+                    <Trash2 className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Borrar</span>
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="mx-4 max-w-md">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta acción eliminará TODOS los informes de la base de datos.
+                      Esta acción no se puede deshacer. Se recomienda exportar a Excel
+                      antes de continuar.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                    <AlertDialogCancel className="w-full sm:w-auto">Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={onClearDatabase}
+                      className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Sí, borrar todo
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+
+              <Button variant="outline" size="sm" onClick={handleSignOut} className="px-2 sm:px-3">
+                <LogOut className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Salir</span>
+              </Button>
             </div>
           </div>
         </div>
+      </header>
 
-        {/* Actions */}
-        <div className="flex items-center justify-between gap-2 sm:gap-4">
-          <Link to="/">
-            <Button variant="ghost" size="sm" className="px-2 sm:px-3">
-              <ArrowLeft className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Volver</span>
-            </Button>
-          </Link>
-
-          <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-end">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSendNotification}
-              disabled={sendingNotification}
-              className="px-2 sm:px-3"
-            >
-              <Bell className={`h-4 w-4 sm:mr-2 ${sendingNotification ? 'animate-pulse' : ''}`} />
-              <span className="hidden sm:inline">
-                {sendingNotification ? 'Enviando...' : 'Recordatorio'}
-              </span>
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onRefresh}
-              disabled={isRefreshing}
-              className="px-2 sm:px-3"
-            >
-              <RefreshCw className={`h-4 w-4 sm:mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Actualizar</span>
-            </Button>
-
-            <Button className="btn-excel px-2 sm:px-3" onClick={onExport} size="sm">
-              <FileSpreadsheet className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Excel</span>
-            </Button>
-
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm" className="px-2 sm:px-3">
-                  <Trash2 className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Borrar</span>
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent className="mx-4 max-w-md">
-                <AlertDialogHeader>
-                  <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Esta acción eliminará TODOS los informes de la base de datos.
-                    Esta acción no se puede deshacer. Se recomienda exportar a Excel
-                    antes de continuar.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-                  <AlertDialogCancel className="w-full sm:w-auto">Cancelar</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={onClearDatabase}
-                    className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  >
-                    Sí, borrar todo
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-
-            <Button variant="outline" size="sm" onClick={handleSignOut} className="px-2 sm:px-3">
-              <LogOut className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Salir</span>
-            </Button>
-          </div>
-        </div>
-      </div>
-    </header>
+      {/* Modal para elegir cómo se verá la foto */}
+      <ImageCropper
+        open={cropperOpen}
+        onClose={handleCloseCropper}
+        imageSrc={selectedImage}
+        onCropComplete={handleCropComplete}
+      />
+    </>
   );
 }

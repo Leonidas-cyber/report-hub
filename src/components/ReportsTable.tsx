@@ -261,6 +261,32 @@ export function ReportsTable({ reports, superintendents, onUpdateReport }: Repor
               </>
             )}
             <div className="space-y-2">
+              <Label>Participación</Label>
+              <Select
+                value={
+                  editForm.participated === true
+                    ? 'yes'
+                    : editForm.participated === false
+                      ? 'no'
+                      : ''
+                }
+                onValueChange={(value) =>
+                  setEditForm({
+                    ...editForm,
+                    participated: value === 'yes',
+                  })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="yes">Sí participó</SelectItem>
+                  <SelectItem value="no">No participó</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <Label>Superintendente</Label>
               <Select
                 value={editForm.superintendentId}
