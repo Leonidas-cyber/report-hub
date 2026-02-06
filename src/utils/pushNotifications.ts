@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { getPreviousMonth, getPreviousMonthYear } from '@/types/report';
 
 // VAPID public key - set this in your .env file
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
@@ -19,32 +20,30 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return outputArray;
 }
 
-// Get previous month name in Spanish
-function getPreviousMonthName(): string {
-  const months = [
-    'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-    'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
-  ];
-  const currentMonth = new Date().getMonth();
-  const previousMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-  return months[previousMonth];
+function normalizeName(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
 }
 
 export async function subscribeToPushNotifications(): Promise<boolean> {
   console.log('=== Iniciando suscripción push ===');
-  
+
   if (!('serviceWorker' in navigator)) {
     console.error('❌ Service Worker no soportado');
     return false;
   }
-  
+
   if (!('PushManager' in window)) {
     console.error('❌ PushManager no soportado');
     return false;
   }
 
   console.log('VAPID_PUBLIC_KEY:', VAPID_PUBLIC_KEY ? `${VAPID_PUBLIC_KEY.substring(0, 20)}...` : 'NO CONFIGURADA');
-  
+
   if (!VAPID_PUBLIC_KEY) {
     console.error('❌ VAPID public key no configurada. Agrega VITE_VAPID_PUBLIC_KEY a tus variables de entorno.');
     return false;
@@ -55,9 +54,11 @@ export async function subscribeToPushNotifications(): Promise<boolean> {
     console.log('📝 Registrando Service Worker...');
     const registration = await navigator.serviceWorker.register('/sw.js');
     console.log('✅ Service Worker registrado:', registration.scope);
-    
+
     await navigator.serviceWorker.ready;
-    console.log('✅ Service Worker listo');    // Request notification permission only when needed
+    console.log('✅ Service Worker listo');
+
+    // Request notification permission only when needed
     if (Notification.permission === 'default') {
       console.log('🔔 Solicitando permiso de notificaciones...');
       const permission = await Notification.requestPermission();
@@ -86,11 +87,18 @@ export async function subscribeToPushNotifications(): Promise<boolean> {
 
     // Extract subscription data
     const subscriptionJson = subscription.toJSON();
-    const endpoint = subscriptionJson.endpoint!;
-    const keys = subscriptionJson.keys!;
-    
+    const endpoint = subscriptionJson.endpoint;
+    const keys = subscriptionJson.keys;
+
+    if (!endpoint || !keys?.p256dh || !keys?.auth) {
+      console.error('❌ Suscripción inválida: faltan endpoint/keys');
+      return false;
+    }
+
     console.log('📤 Guardando en base de datos...');
-    console.log('Endpoint:', endpoint.substring(0, 50) + '...');    // Save subscription to database
+    console.log('Endpoint:', endpoint.substring(0, 50) + '...');
+
+    // Save subscription to database
     const { error } = await supabase
       .from('push_subscriptions')
       .insert({
@@ -113,6 +121,60 @@ export async function subscribeToPushNotifications(): Promise<boolean> {
     return true;
   } catch (error) {
     console.error('❌ Error en suscripción push:', error);
+    return false;
+  }
+}
+
+export async function markCurrentSubscriptionAsReported(params: {
+  fullName: string;
+  month: string;
+  year: number;
+}): Promise<boolean> {
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      return false;
+    }
+
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      return false;
+    }
+
+    const sub = subscription.toJSON();
+    const endpoint = sub.endpoint;
+    const keys = sub.keys;
+
+    if (!endpoint || !keys?.p256dh || !keys?.auth) {
+      return false;
+    }
+
+    const cleanName = params.fullName.trim();
+    const normalizedName = normalizeName(cleanName);
+
+    // Reemplazar por endpoint (delete + insert) para evitar dependencia de policy UPDATE
+    await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint);
+
+    const { error } = await supabase
+      .from('push_subscriptions')
+      .insert({
+        endpoint,
+        keys_p256dh: keys.p256dh,
+        keys_auth: keys.auth,
+        subscriber_name: cleanName,
+        subscriber_name_norm: normalizedName,
+        last_report_month: params.month,
+        last_report_year: params.year,
+      } as any);
+
+    if (error) {
+      console.error('Error marcando suscripción como reporte enviado:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error en markCurrentSubscriptionAsReported:', error);
     return false;
   }
 }
@@ -140,7 +202,7 @@ export async function unsubscribeFromPushNotifications(): Promise<boolean> {
   }
 }
 
-export async function sendPushNotificationToAll(message?: string): Promise<{ success: boolean; sent?: number; failed?: number; total?: number }> {
+export async function sendPushNotificationToAll(message?: string): Promise<{ success: boolean; sent?: number; failed?: number; total?: number; skipped?: number }> {
   try {
     // 1. Verificar si hay una sesión activa antes de intentar enviar
     const { data: { session } } = await supabase.auth.getSession();
@@ -152,12 +214,18 @@ export async function sendPushNotificationToAll(message?: string): Promise<{ suc
 
     console.log('Enviando notificación como usuario:', session.user.email);
 
-    const previousMonth = getPreviousMonthName();
-    const notificationMessage = message || `¡Recuerda enviar tu informe de servicio de ${previousMonth}! - Congregación Arrayanes`;
+    // El recordatorio siempre corresponde al reporte del mes anterior
+    const targetMonth = getPreviousMonth();
+    const targetYear = getPreviousMonthYear();
+    const notificationMessage = message || `¡Recuerda enviar tu informe de servicio de ${targetMonth.toLowerCase()}! - Congregación Arrayanes`;
 
-    // 2. Invocar la función (Al haber verificado la sesión arriba, supabase.invoke usará el token automáticamente)
+    // 2. Invocar la función
     const { data, error } = await supabase.functions.invoke('send-push-notification', {
-      body: { message: notificationMessage },
+      body: {
+        message: notificationMessage,
+        targetMonth,
+        targetYear,
+      },
     });
 
     if (error) {
@@ -172,6 +240,7 @@ export async function sendPushNotificationToAll(message?: string): Promise<{ suc
       sent: data.sent,
       failed: data.failed,
       total: data.total,
+      skipped: data.skipped,
     };
   } catch (error) {
     console.error('Error calling push notification function:', error);
