@@ -6,11 +6,6 @@ import {
   getPushSubscriptionStatus,
   isPushNotificationSupported
 } from '@/utils/pushNotifications';
-import { 
-  requestNotificationPermission, 
-  checkNotificationStatus,
-  setupNotifications 
-} from '@/utils/notifications';
 import { toast } from 'sonner';
 
 export function NotificationPrompt() {
@@ -19,45 +14,57 @@ export function NotificationPrompt() {
 
   useEffect(() => {
     const checkStatus = async () => {
-      // Check real push notification status first
       if (isPushNotificationSupported()) {
         const pushStatus = await getPushSubscriptionStatus();
+
         if (pushStatus === 'subscribed') {
           setStatus('granted');
           return;
-        } else if (pushStatus === 'unsupported') {
-          // Fall back to local notification check
-          setStatus(checkNotificationStatus());
-          return;
         }
+
+        // Si el navegador soporta push pero no hay suscripción,
+        // NO marcar como activado aunque el permiso esté concedido.
+        if (Notification.permission === 'denied') {
+          setStatus('denied');
+        } else {
+          setStatus('default');
+        }
+        return;
       }
-      // Default to checking local notification status
-      setStatus(checkNotificationStatus());
+
+      // Navegador sin soporte Push
+      if (!('Notification' in window)) {
+        setStatus('unsupported');
+      } else {
+        setStatus(Notification.permission as 'granted' | 'denied' | 'default');
+      }
     };
+
     checkStatus();
   }, []);
 
   const handleEnableNotifications = async () => {
     setIsLoading(true);
     try {
-      // Try real push notifications first
-      if (isPushNotificationSupported()) {
-        const success = await subscribeToPushNotifications();
-        if (success) {
-          setStatus('granted');
-          toast.success('¡Notificaciones activadas! Recibirás recordatorios cada mes.');
-          return;
-        }
+      if (!isPushNotificationSupported()) {
+        setStatus('unsupported');
+        toast.error('Tu navegador no soporta notificaciones push');
+        return;
       }
-      
-      // Fallback to local notifications
-      const success = await setupNotifications();
+
+      const success = await subscribeToPushNotifications();
+
       if (success) {
         setStatus('granted');
-        toast.success('¡Notificaciones activadas! Te recordaremos cada mes.');
+        toast.success('¡Notificaciones activadas! Recibirás recordatorios aunque cierres la app.');
       } else {
-        setStatus('denied');
-        toast.error('No se pudieron activar las notificaciones');
+        if (Notification.permission === 'denied') {
+          setStatus('denied');
+          toast.error('Permiso bloqueado. Habilítalo en la configuración del navegador.');
+        } else {
+          setStatus('default');
+          toast.error('No se pudo guardar la suscripción en la base de datos.');
+        }
       }
     } catch (error) {
       console.error('Error enabling notifications:', error);

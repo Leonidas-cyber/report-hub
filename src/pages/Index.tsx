@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,7 +17,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSuperintendents } from '@/hooks/useSuperintendents';
 import { SuccessModal } from '@/components/SuccessModal';
 import { NotificationPrompt } from '@/components/NotificationPrompt';
-import { setupNotifications } from '@/utils/notifications';
 import { 
   ROLES, 
   getPreviousMonth,
@@ -43,11 +42,6 @@ const Index = () => {
   const [showSuccess, setShowSuccess] = useState(false);
 
   const showHoursField = role === 'precursor_auxiliar' || role === 'precursor_regular';
-
-  // Initialize notifications on mount
-  useEffect(() => {
-    setupNotifications();
-  }, []);
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 

@@ -57,26 +57,32 @@ export async function subscribeToPushNotifications(): Promise<boolean> {
     console.log('✅ Service Worker registrado:', registration.scope);
     
     await navigator.serviceWorker.ready;
-    console.log('✅ Service Worker listo');
+    console.log('✅ Service Worker listo');    // Request notification permission only when needed
+    if (Notification.permission === 'default') {
+      console.log('🔔 Solicitando permiso de notificaciones...');
+      const permission = await Notification.requestPermission();
+      console.log('Permiso:', permission);
+    }
 
-    // Request notification permission
-    console.log('🔔 Solicitando permiso de notificaciones...');
-    const permission = await Notification.requestPermission();
-    console.log('Permiso:', permission);
-    
-    if (permission !== 'granted') {
+    if (Notification.permission !== 'granted') {
       console.error('❌ Permiso de notificaciones denegado');
       return false;
     }
 
-    // Subscribe to push notifications
-    console.log('📲 Suscribiendo a push notifications...');
-    const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
-    const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: applicationServerKey.buffer as ArrayBuffer,
-    });
-    console.log('✅ Suscripción creada');
+    // Reutilizar suscripción existente si ya existe
+    let subscription = await registration.pushManager.getSubscription();
+
+    if (!subscription) {
+      console.log('📲 Creando nueva suscripción push...');
+      const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey,
+      });
+      console.log('✅ Suscripción creada');
+    } else {
+      console.log('ℹ️ Ya existe suscripción local, reutilizando...');
+    }
 
     // Extract subscription data
     const subscriptionJson = subscription.toJSON();
@@ -84,23 +90,23 @@ export async function subscribeToPushNotifications(): Promise<boolean> {
     const keys = subscriptionJson.keys!;
     
     console.log('📤 Guardando en base de datos...');
-    console.log('Endpoint:', endpoint.substring(0, 50) + '...');
-
-    // Save subscription to database
+    console.log('Endpoint:', endpoint.substring(0, 50) + '...');    // Save subscription to database
     const { error } = await supabase
       .from('push_subscriptions')
-      .upsert(
-        {
-          endpoint,
-          keys_p256dh: keys.p256dh,
-          keys_auth: keys.auth,
-        },
-        { onConflict: 'endpoint' }
-      );
+      .insert({
+        endpoint,
+        keys_p256dh: keys.p256dh,
+        keys_auth: keys.auth,
+      });
 
     if (error) {
-      console.error('❌ Error guardando suscripción:', error);
-      return false;
+      // Si ya existe, consideramos éxito
+      if (error.code === '23505') {
+        console.log('ℹ️ La suscripción ya existía en la base de datos');
+      } else {
+        console.error('❌ Error guardando suscripción:', error);
+        return false;
+      }
     }
 
     console.log('✅ Suscripción push guardada exitosamente');
