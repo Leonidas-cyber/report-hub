@@ -109,14 +109,17 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
       .from('admin_profiles')
       .select('full_name, avatar_url')
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error('Error fetching profile:', error);
       return;
     }
 
-    setProfile(data);
+    setProfile(data ?? {
+      full_name: user.user_metadata?.full_name ?? null,
+      avatar_url: null,
+    });
   };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -156,15 +159,20 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
 
       const urlWithCacheBuster = `${publicUrl}?t=${Date.now()}`;
 
-      // Update profile
-      const { error: updateError } = await supabase
+      // Update/insert profile (si no existe fila, la crea)
+      const { data: updatedProfile, error: updateError } = await supabase
         .from('admin_profiles')
-        .update({ avatar_url: urlWithCacheBuster })
-        .eq('user_id', user.id);
+        .upsert({
+          user_id: user.id,
+          full_name: profile?.full_name ?? user.user_metadata?.full_name ?? null,
+          avatar_url: urlWithCacheBuster,
+        }, { onConflict: 'user_id' })
+        .select('full_name, avatar_url')
+        .single();
 
       if (updateError) throw updateError;
 
-      setProfile(prev => prev ? { ...prev, avatar_url: urlWithCacheBuster } : null);
+      setProfile(updatedProfile);
       toast.success('Foto de perfil actualizada');
     } catch (error) {
       console.error('Error uploading avatar:', error);

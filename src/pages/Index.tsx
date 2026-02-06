@@ -110,9 +110,7 @@ const Index = () => {
             </span>
           </div>
           <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
-            <div className="hidden sm:block">
-              <NotificationPrompt />
-            </div>
+            <NotificationPrompt />
             <Link to="/about">
               <Button variant="ghost" size="sm" className="px-2 sm:px-3">
                 <span className="hidden sm:inline">Información</span>

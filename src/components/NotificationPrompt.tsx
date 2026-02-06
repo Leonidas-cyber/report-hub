@@ -80,18 +80,18 @@ export function NotificationPrompt() {
 
   if (status === 'granted') {
     return (
-      <div className="flex items-center gap-2 text-sm text-success">
+      <div className="flex items-center gap-2 text-sm text-success" title="Notificaciones activadas">
         <Check className="h-4 w-4" />
-        <span>Notificaciones activadas</span>
+        <span className="hidden sm:inline">Notificaciones activadas</span>
       </div>
     );
   }
 
   if (status === 'denied') {
     return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground" title="Notificaciones bloqueadas">
         <BellOff className="h-4 w-4" />
-        <span>Notificaciones bloqueadas</span>
+        <span className="hidden sm:inline">Notificaciones bloqueadas</span>
       </div>
     );
   }
@@ -102,10 +102,12 @@ export function NotificationPrompt() {
       size="sm"
       onClick={handleEnableNotifications}
       disabled={isLoading}
-      className="gap-2"
+      className="gap-2 px-2 sm:px-3"
+      title="Activar recordatorios"
+      aria-label="Activar recordatorios"
     >
       <Bell className="h-4 w-4" />
-      {isLoading ? 'Activando...' : 'Activar recordatorios'}
+      <span className="hidden sm:inline">{isLoading ? 'Activando...' : 'Activar recordatorios'}</span>
     </Button>
   );
 }
