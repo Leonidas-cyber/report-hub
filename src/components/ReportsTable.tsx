@@ -51,8 +51,11 @@ export function ReportsTable({ reports, superintendents, onUpdateReport }: Repor
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
   const [filterParticipated, setFilterParticipated] = useState<string>('all');
+  const [filterGroup, setFilterGroup] = useState<string>('all');
   const [editingReport, setEditingReport] = useState<ServiceReport | null>(null);
   const [editForm, setEditForm] = useState<Partial<ServiceReport>>({});
+
+  const availableGroups = [...new Set(superintendents.map((s) => s.group_number))].sort((a, b) => a - b);
 
   const filteredReports = reports.filter((report) => {
     const matchesSearch = report.fullName.toLowerCase().includes(searchTerm.toLowerCase());
@@ -61,8 +64,11 @@ export function ReportsTable({ reports, superintendents, onUpdateReport }: Repor
       filterParticipated === 'all' || 
       (filterParticipated === 'yes' && report.participated) ||
       (filterParticipated === 'no' && !report.participated);
-    
-    return matchesSearch && matchesRole && matchesParticipated;
+
+    const groupNumber = superintendents.find((s) => s.id === report.superintendentId)?.group_number;
+    const matchesGroup = filterGroup === 'all' || String(groupNumber) === filterGroup;
+
+    return matchesSearch && matchesRole && matchesParticipated && matchesGroup;
   });
 
   const handleEdit = (report: ServiceReport) => {
@@ -123,6 +129,19 @@ export function ReportsTable({ reports, superintendents, onUpdateReport }: Repor
               {ROLES.map((r) => (
                 <SelectItem key={r.value} value={r.value}>
                   {r.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterGroup} onValueChange={setFilterGroup}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Grupo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los grupos</SelectItem>
+              {availableGroups.map((group) => (
+                <SelectItem key={group} value={String(group)}>
+                  Grupo {group}
                 </SelectItem>
               ))}
             </SelectContent>

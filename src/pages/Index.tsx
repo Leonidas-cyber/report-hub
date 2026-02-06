@@ -24,6 +24,7 @@ import {
 } from '@/types/report';
 import type { RoleType } from '@/types/report';
 import { AlertTriangle, Send, Settings, FileText } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const Index = () => {
   // Reports are always for the PREVIOUS month
@@ -224,8 +225,24 @@ const Index = () => {
               <div className="space-y-3">
                 <Label className="text-base">Participó en alguna faceta de la predicación durante el mes:</Label>
                 <RadioGroup value={participated} onValueChange={setParticipated}>
-                  <div className="flex items-start gap-3 p-4 rounded-lg border border-border hover:border-success/50 transition-colors">
-                    <RadioGroupItem value="yes" id="participated-yes" className="mt-1" />
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setParticipated('yes')}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setParticipated('yes');
+                      }
+                    }}
+                    className={cn(
+                      'flex items-start gap-3 p-4 rounded-lg border transition-all cursor-pointer',
+                      participated === 'yes'
+                        ? 'border-success bg-success/5 ring-1 ring-success/20'
+                        : 'border-border hover:border-success/50'
+                    )}
+                  >
+                    <RadioGroupItem value="yes" id="participated-yes" className="mt-1 pointer-events-none" />
                     <div>
                       <Label htmlFor="participated-yes" className="font-medium text-success cursor-pointer text-lg">
                         Sí, participé
@@ -235,8 +252,25 @@ const Index = () => {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-start gap-3 p-4 rounded-lg border border-border hover:border-destructive/50 transition-colors">
-                    <RadioGroupItem value="no" id="participated-no" className="mt-1" />
+
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setParticipated('no')}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setParticipated('no');
+                      }
+                    }}
+                    className={cn(
+                      'flex items-start gap-3 p-4 rounded-lg border transition-all cursor-pointer',
+                      participated === 'no'
+                        ? 'border-destructive bg-destructive/5 ring-1 ring-destructive/20'
+                        : 'border-border hover:border-destructive/50'
+                    )}
+                  >
+                    <RadioGroupItem value="no" id="participated-no" className="mt-1 pointer-events-none" />
                     <div>
                       <Label htmlFor="participated-no" className="font-medium text-destructive cursor-pointer text-lg">
                         No participé
