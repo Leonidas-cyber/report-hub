@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -58,7 +59,7 @@ function getReadableError(err: unknown): string {
 }
 
 export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing }: AdminHeaderProps) {
-  const { user, signOut } = useAuth();
+  const { user, signOut, isSuperAdmin } = useAuth();
 
   const [profile, setProfile] = useState<AdminProfile | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -369,9 +370,12 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
                 <h1 className="text-lg sm:text-2xl font-bold text-foreground truncate">
                   ¡Bienvenido, {displayName}!
                 </h1>
-                <p className="text-xs sm:text-base text-muted-foreground hidden sm:block">
-                  Gestiona los informes de la congregación
-                </p>
+                <div className="hidden sm:flex items-center gap-2">
+                  <p className="text-xs sm:text-base text-muted-foreground">
+                    Gestiona los informes de la congregación
+                  </p>
+                  {isSuperAdmin ? <Badge variant="default">Super Admin</Badge> : null}
+                </div>
               </div>
             </div>
           </div>

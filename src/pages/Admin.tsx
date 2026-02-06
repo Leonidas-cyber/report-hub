@@ -1,184 +1,108 @@
-import { StatCard } from '@/components/StatCard';
+import { useMemo, useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { ReportsTable } from '@/components/ReportsTable';
 import { ReportsGrid } from '@/components/ReportsGrid';
 import { AdminHeader } from '@/components/AdminHeader';
-import { AttendanceForm } from '@/components/AttendanceForm';
-import { AttendanceStats } from '@/components/AttendanceStats';
-import { exportToExcel } from '@/utils/exportExcel';
+import { SuperAdminPanel } from '@/components/SuperAdminPanel';
 import { useServiceReports } from '@/hooks/useServiceReports';
 import { useSuperintendents } from '@/hooks/useSuperintendents';
-import { getPreviousMonth } from '@/types/report';
-import { Users, FileText, Clock, Download } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { useState } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useAuth } from '@/contexts/AuthContext';
+import { Table2, LayoutGrid, ShieldCheck } from 'lucide-react';
 
 const Admin = () => {
-  const { reports, loading, updateReport, deleteReport, refetch } = useServiceReports();
+  const { user, isSuperAdmin } = useAuth();
+  const { reports, loading, updateReport, deleteReport } = useServiceReports();
   const { superintendents } = useSuperintendents();
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [attendanceKey, setAttendanceKey] = useState(0);
-  const previousMonth = getPreviousMonth();
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
 
-  const totalReports = reports.length;
-  const participatedCount = reports.filter(r => r.participated).length;
-  const totalHours = reports.reduce((sum, r) => sum + (r.hours || 0), 0);
-  const precursorCount = reports.filter(r => r.role !== 'publicador').length;
-
-  const handleUpdateReport = async (id: string, updates: Parameters<typeof updateReport>[1]) => {
-    try {
-      await updateReport(id, updates);
-      toast.success('Informe actualizado correctamente');
-    } catch {
-      toast.error('Error al actualizar el informe');
-    }
-  };
-
-  const handleDeleteReport = async (id: string) => {
-    try {
-      await deleteReport(id);
-      toast.success('Informe eliminado correctamente');
-    } catch {
-      toast.error('Error al eliminar el informe');
-    }
-  };
-
-  const handleExportExcel = () => {
-    if (reports.length === 0) {
-      toast.error('No hay informes para exportar');
-      return;
-    }
-    exportToExcel(reports, `informes_${previousMonth.toLowerCase()}_${new Date().getFullYear()}`);
-    toast.success('Archivo Excel descargado correctamente');
-  };
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await refetch();
-    setIsRefreshing(false);
-    toast.success('Datos actualizados');
-  };
-
-  const handleClearDatabase = async () => {
-    try {
-      const { error } = await supabase
-        .from('service_reports')
-        .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all records
-      
-      if (error) throw error;
-      
-      toast.success('Todos los informes han sido eliminados');
-      await refetch();
-    } catch {
-      toast.error('Error al eliminar los informes');
-    }
-  };
+  const sortedSuperintendents = useMemo(() => {
+    return [...superintendents].sort((a, b) => {
+      if (a.group_number !== b.group_number) return a.group_number - b.group_number;
+      return a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
+    });
+  }, [superintendents]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-subtle">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent mx-auto mb-4" />
-          <p className="text-muted-foreground">Cargando informes...</p>
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Cargando panel de administración...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header with welcome message and avatar */}
-      <AdminHeader 
-        onRefresh={handleRefresh}
-        onExport={handleExportExcel}
-        onClearDatabase={handleClearDatabase}
-        isRefreshing={isRefreshing}
-      />
+    <div className="min-h-screen bg-gradient-subtle">
+      <AdminHeader />
 
-      {/* Content */}
-      <main className="max-w-7xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
-        {/* Título del mes */}
-        <div className="mb-6 sm:mb-8">
-          <h2 className="text-xl sm:text-2xl font-bold text-primary">
-            Informes de {previousMonth} {new Date().getFullYear()}
-          </h2>
-          <p className="text-sm sm:text-base text-muted-foreground mt-1">
-            Datos actualizados en tiempo real
-          </p>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
-          <StatCard
-            title="Total Informes"
-            value={totalReports}
-            description="Informes recibidos este mes"
-            icon={FileText}
-            variant="primary"
-          />
-          <StatCard
-            title="Participaron"
-            value={participatedCount}
-            description={totalReports > 0 ? `${Math.round((participatedCount / totalReports) * 100)}% del total` : '0% del total'}
-            icon={Users}
-            variant="success"
-          />
-          <StatCard
-            title="Horas Totales"
-            value={totalHours}
-            description="Horas de servicio reportadas"
-            icon={Clock}
-            variant="info"
-          />
-          <StatCard
-            title="Precursores"
-            value={precursorCount}
-            description="Auxiliares y regulares"
-            icon={Download}
-            variant="warning"
-          />
-        </div>
-
-        {/* Tabs para Informes y Asistencia */}
-        <Tabs defaultValue="reports" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="reports" className="text-xs sm:text-sm">Informes</TabsTrigger>
-            <TabsTrigger value="attendance" className="text-xs sm:text-sm">Asistencia</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="reports">
-            {/* Grid de tarjetas */}
-            <div className="bg-card rounded-xl border border-border p-4 sm:p-6">
-              <div className="flex items-center justify-between mb-4 sm:mb-6">
-                <h3 className="text-base sm:text-lg font-semibold text-foreground">
-                  Listado de Informes
-                </h3>
+      <main className="container mx-auto px-4 py-8 space-y-6">
+        <Card className="shadow-card">
+          <CardHeader>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <CardTitle className="text-2xl">Gestión de Informes</CardTitle>
+                <CardDescription>
+                  Administra y revisa los informes de servicio enviados
+                </CardDescription>
               </div>
-              <ReportsGrid 
-                reports={reports} 
-                superintendents={superintendents}
-                onUpdateReport={handleUpdateReport}
-                onDeleteReport={handleDeleteReport}
+
+              <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-1">
+                <Button
+                  variant={viewMode === 'table' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('table')}
+                >
+                  <Table2 className="h-4 w-4 mr-2" />
+                  Tabla
+                </Button>
+                <Button
+                  variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('grid')}
+                >
+                  <LayoutGrid className="h-4 w-4 mr-2" />
+                  Tarjetas
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent>
+            {viewMode === 'table' ? (
+              <ReportsTable
+                reports={reports}
+                superintendents={sortedSuperintendents}
+                onUpdateReport={updateReport}
               />
-            </div>
-          </TabsContent>
+            ) : (
+              <ReportsGrid
+                reports={reports}
+                superintendents={sortedSuperintendents}
+                onUpdateReport={updateReport}
+                onDeleteReport={deleteReport}
+              />
+            )}
+          </CardContent>
+        </Card>
 
-          <TabsContent value="attendance">
-            <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
-              <div className="lg:col-span-1">
-                <AttendanceForm onSuccess={() => setAttendanceKey(k => k + 1)} />
-                <p className="text-xs sm:text-sm text-muted-foreground mt-3 sm:mt-4 text-center">
-                  Registra la asistencia al finalizar cada reunión.<br />
-                  Jueves (Entre Semana) y Domingos (Fin de Semana).
-                </p>
-              </div>
-              <div className="lg:col-span-2">
-                <AttendanceStats key={attendanceKey} />
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
+        {isSuperAdmin ? (
+          <SuperAdminPanel currentUserId={user?.id} />
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ShieldCheck className="h-4 w-4" />
+                Funciones de super administrador
+              </CardTitle>
+              <CardDescription>
+                Este bloque se habilita únicamente para cuentas con rol <b>super_admin</b>.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        )}
       </main>
     </div>
   );
