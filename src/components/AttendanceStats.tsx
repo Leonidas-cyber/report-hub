@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { BarChart3, Calculator, Users } from 'lucide-react';
+import { BarChart3, Calculator, Trash2, Users } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface AttendanceRecord {
   id: string;
@@ -26,6 +27,7 @@ export function AttendanceStats() {
   const [stats, setStats] = useState<Stats>({ weekdayAvg: 0, weekendAvg: 0, totalMonthly: 0, generalAvg: 0 });
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const months = [
     { value: 'enero', label: 'Enero' },
@@ -77,6 +79,7 @@ export function AttendanceStats() {
 
     if (error) {
       console.error('Error fetching attendance:', error);
+      toast.error('No se pudo cargar la asistencia');
       return;
     }
 
@@ -87,6 +90,40 @@ export function AttendanceStats() {
   useEffect(() => {
     fetchRecords();
   }, [fetchRecords]);
+
+  const handleDeleteAttendance = async (record: AttendanceRecord) => {
+    const dateLabel = new Date(record.date).toLocaleDateString('es-MX', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+
+    const confirmed = window.confirm(
+      `¿Eliminar este registro de asistencia?\n\n${
+        record.meeting_type === 'entre_semana' ? 'Entre semana' : 'Fin de semana'
+      } · ${dateLabel} · ${record.attendees} asistentes`
+    );
+
+    if (!confirmed) return;
+
+    setDeletingId(record.id);
+    try {
+      const { error } = await supabase
+        .from('attendance_records')
+        .delete()
+        .eq('id', record.id);
+
+      if (error) throw error;
+
+      toast.success('Registro de asistencia eliminado');
+      await fetchRecords();
+    } catch (error) {
+      console.error('Error deleting attendance:', error);
+      toast.error('No se pudo eliminar el registro');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -186,6 +223,7 @@ export function AttendanceStats() {
                       <th className="text-left py-2 px-3">Fecha</th>
                       <th className="text-left py-2 px-3">Tipo</th>
                       <th className="text-right py-2 px-3">Asistentes</th>
+                      <th className="text-right py-2 px-3">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -202,6 +240,19 @@ export function AttendanceStats() {
                           {record.meeting_type === 'entre_semana' ? 'Entre Semana' : 'Fin de Semana'}
                         </td>
                         <td className="py-2 px-3 text-right font-semibold">{record.attendees}</td>
+                        <td className="py-2 px-3 text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteAttendance(record)}
+                            disabled={deletingId === record.id}
+                            className="text-destructive hover:text-destructive"
+                            title="Eliminar registro"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">Eliminar</span>
+                          </Button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

@@ -249,19 +249,25 @@ const Index = () => {
                 </RadioGroup>
               </div>
 
-              {/* Superintendente */}
+              {/* Capitán de servicio */}
               <div className="space-y-2">
-                <Label className="text-base">Superintendente de Servicio:</Label>
+                <Label className="text-base">Capitán de Servicio:</Label>
                 <Select value={superintendentId} onValueChange={setSuperintendentId} disabled={loadingSuperintendents} required>
                   <SelectTrigger className="input-field text-lg py-6">
-                    <SelectValue placeholder="Seleccione una opción" />
+                    <SelectValue placeholder="Seleccione el capitán correspondiente" />
                   </SelectTrigger>
                   <SelectContent>
-                    {superintendents.map((s) => (
-                      <SelectItem key={s.id} value={s.id} className="text-lg py-3">
-                        {s.name} Grupo {s.group_number}
-                      </SelectItem>
-                    ))}
+                    {superintendents.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-muted-foreground">
+                        No hay capitanes cargados en base de datos
+                      </div>
+                    ) : (
+                      superintendents.map((s) => (
+                        <SelectItem key={s.id} value={s.id} className="text-lg py-3">
+                          {s.name} Grupo {s.group_number}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
