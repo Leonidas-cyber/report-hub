@@ -1,140 +1,150 @@
-import { Link } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { FileText, ArrowLeft, Info, Target, User, ExternalLink } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  ArrowLeft,
+  ExternalLink,
+  Info,
+  Moon,
+  Shield,
+  Sun,
+  User,
+} from "lucide-react";
 
 const About = () => {
+  const [isDarkMode, setIsDarkMode] = useState(
+    window.matchMedia("(prefers-color-scheme: dark)").matches
+  );
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+
+    const handleChange = (event: MediaQueryListEvent) => {
+      setIsDarkMode(event.matches);
+    };
+
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", handleChange);
+      return () => media.removeEventListener("change", handleChange);
+    }
+
+    media.addListener(handleChange);
+    return () => media.removeListener(handleChange);
+  }, []);
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Navigation Bar */}
-      <nav className="bg-card border-b border-border sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="icon-circle-primary">
-              <FileText className="h-5 w-5" />
+      <nav className="bg-card/95 border-b border-border sticky top-0 z-20 backdrop-blur">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <img
+              src="/favicon-64.png"
+              alt="Icono Informes"
+              className="h-9 w-9 rounded-full"
+            />
+            <div className="min-w-0">
+              <p className="font-semibold leading-tight truncate">Información del sistema</p>
+              <p className="text-xs text-muted-foreground truncate">Congregación Arrayanes</p>
             </div>
-            <span className="font-bold text-lg text-foreground">Informes de Servicio</span>
           </div>
+
           <Link to="/">
             <Button variant="outline" size="sm">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Volver al Formulario
+              Volver
             </Button>
           </Link>
         </div>
       </nav>
 
-      <main className="max-w-4xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground">Información</h1>
+      <main className="max-w-5xl mx-auto px-4 py-8">
+        <section className="mb-8">
+          <h1 className="text-3xl font-bold">Página de información</h1>
           <p className="text-muted-foreground mt-2">
-            Conoce más sobre nuestro sitio web y su propósito.
+            Esta sección explica el propósito del sitio, su seguridad y el estado visual según el tema del dispositivo.
           </p>
-        </div>
 
-        {/* About Section */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-          <Card className="bg-card border-border">
-            <CardContent className="p-6">
-              <div className="flex justify-center mb-4">
-                <div className="icon-circle-primary">
-                  <Info className="h-6 w-6" />
-                </div>
-              </div>
-              <h2 className="text-xl font-bold text-foreground mb-3">Sobre este sitio</h2>
-              <p className="text-muted-foreground leading-relaxed">
-                Este sitio web ha sido desarrollado de forma gratuita y sin fines de lucro, 
-                con el propósito de brindar un servicio útil a la comunidad. Surgió como 
-                respuesta a necesidades de organización dentro de la Congregación Arrayanes.
+          <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 bg-card">
+            {isDarkMode ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+            <span className="text-sm font-medium">
+              Modo detectado: {isDarkMode ? "Oscuro" : "Claro"}
+            </span>
+          </div>
+        </section>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Info className="h-5 w-5 text-primary" />
+                ¿Para qué sirve este sistema?
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-muted-foreground space-y-2">
+              <p>
+                Facilita el envío mensual de informes de servicio de forma rápida, clara y desde cualquier dispositivo.
+              </p>
+              <p>
+                El objetivo es reducir errores de captura y mejorar la organización general de la congregación.
               </p>
             </CardContent>
           </Card>
 
-          <Card className="bg-card border-border">
-            <CardContent className="p-6">
-              <div className="flex justify-center mb-4">
-                <div className="icon-circle-primary">
-                  <Target className="h-6 w-6" />
-                </div>
-              </div>
-              <h2 className="text-xl font-bold text-foreground mb-3">Nuestra misión</h2>
-              <p className="text-muted-foreground leading-relaxed">
-                Priorizamos la seguridad de la información y el respeto a la privacidad 
-                de los usuarios. Este proyecto busca aplicar la tecnología con responsabilidad 
-                para fortalecer la colaboración, la organización y el sentido de comunidad.
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Shield className="h-5 w-5 text-primary" />
+                Privacidad y seguridad
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-muted-foreground space-y-2">
+              <p>
+                El sitio usa autenticación para el panel administrativo y reglas de acceso para proteger los datos.
+              </p>
+              <p>
+                Además, se aplican permisos por rol para restringir acciones sensibles.
               </p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Developer Section */}
-        <div className="mb-10">
-          <h2 className="text-2xl font-bold text-foreground mb-4">Desarrollador</h2>
-          <Card className="bg-card border-border">
-            <CardContent className="p-6">
-              <div className="flex items-start gap-4">
-                <div className="icon-circle-primary flex-shrink-0">
-                  <User className="h-6 w-6" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-primary">Leonardo Gonzalez</h3>
-                  <p className="text-sm text-muted-foreground mb-2">Desarrollador Web</p>
-                  <p className="text-muted-foreground leading-relaxed">
-                    Como estudiante y desarrollador comprometido con el servicio a los demás, 
-                    creo que el conocimiento debe ponerse al servicio de las personas. Este sitio 
-                    es un pequeño aporte desde mi área de estudio y experiencia, con la esperanza 
-                    de facilitar la vida comunitaria.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <User className="h-5 w-5 text-primary" />
+              Desarrollador
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="font-semibold text-primary">Leonardo González</p>
+            <p className="text-muted-foreground mt-2">
+              Proyecto desarrollado para mejorar la experiencia de registro y administración de informes, priorizando facilidad de uso y confiabilidad.
+            </p>
+          </CardContent>
+        </Card>
 
-        {/* License Section */}
-        <div className="mb-10">
-          <h2 className="text-2xl font-bold text-foreground mb-4">Licencia</h2>
-          <Card className="bg-card border-border">
-            <CardContent className="p-6 text-center">
-              <div className="flex justify-center mb-4">
-                <div className="flex items-center justify-center w-12 h-12 rounded-full border-2 border-primary text-primary font-bold text-xl">
-                  CC
-                </div>
-              </div>
-              <p className="text-muted-foreground mb-4">
-                Esta obra está bajo una{' '}
-                <a 
-                  href="https://creativecommons.org/licenses/by-nc-nd/4.0/" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline inline-flex items-center gap-1"
-                >
-                  Licencia Creative Commons Atribución-NoComercial-SinDerivadas 4.0 Internacional
-                  <ExternalLink className="h-3 w-3" />
-                </a>.
-              </p>
-              <div className="flex justify-center gap-4 text-muted-foreground">
-                <div className="flex items-center justify-center w-8 h-8 rounded-full border border-muted-foreground text-sm">
-                  ⓘ
-                </div>
-                <div className="flex items-center justify-center w-8 h-8 rounded-full border border-muted-foreground text-sm">
-                  $
-                </div>
-                <div className="flex items-center justify-center w-8 h-8 rounded-full border border-muted-foreground text-sm">
-                  =
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Footer */}
-        <footer className="text-center py-8 border-t border-border">
-          <p className="text-muted-foreground font-medium">
-            Congregación Arrayanes
-          </p>
-        </footer>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Licencia</CardTitle>
+          </CardHeader>
+          <CardContent className="text-muted-foreground">
+            <p>
+              Esta obra está bajo una licencia
+              {" "}
+              <a
+                href="https://creativecommons.org/licenses/by-nc-nd/4.0/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-primary hover:underline"
+              >
+                Creative Commons BY-NC-ND 4.0
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+              .
+            </p>
+          </CardContent>
+        </Card>
       </main>
     </div>
   );
