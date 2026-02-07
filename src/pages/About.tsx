@@ -118,9 +118,9 @@ const About = () => {
           </CardHeader>
           <CardContent>
             <p className="font-semibold text-primary">Leonardo González</p>
-            <p className="text-muted-foreground mt-2">
-              Proyecto desarrollado para mejorar la experiencia de registro y administración de informes, priorizando facilidad de uso y confiabilidad.
-            </p>
+           <p className="text-muted-foreground mt-2">
+  Creo que la tecnología debe ayudar a las personas. Como estudiante de ingeniería eléctrica y desarrollador, este proyecto es mi aporte para facilitar la vida comunitaria mediante un sistema intuitivo, estable y confiable para el registro de informes.
+           </p>
           </CardContent>
         </Card>
 
