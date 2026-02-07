@@ -272,28 +272,39 @@ const Index = () => {
               <div className="space-y-3">
                 <Label className="text-base">Participó en alguna faceta de la predicación durante el mes:</Label>
                 <RadioGroup value={participated} onValueChange={setParticipated}>
-                  <div className="flex items-start gap-3 p-4 rounded-lg border border-border hover:border-success/50 transition-colors">
-                    <RadioGroupItem value="yes" id="participated-yes" className="mt-1" />
-                    <div>
-                      <Label htmlFor="participated-yes" className="font-medium text-success cursor-pointer text-lg">
-                        Sí, participé
-                      </Label>
-                      <p className="text-sm text-muted-foreground">
-                        Marque si realizó alguna actividad este mes
-                      </p>
+                  <Label
+                    htmlFor="participated-yes"
+                    className={`block cursor-pointer rounded-lg border p-4 transition-colors ${participated === 'yes' ? 'border-success bg-success/5' : 'border-border hover:border-success/50'}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <RadioGroupItem value="yes" id="participated-yes" className="mt-1" />
+                      <div>
+                        <div className="font-medium text-success text-lg leading-tight">
+                          Sí, participé
+                        </div>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Marque si realizó alguna actividad este mes
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-start gap-3 p-4 rounded-lg border border-border hover:border-destructive/50 transition-colors">
-                    <RadioGroupItem value="no" id="participated-no" className="mt-1" />
-                    <div>
-                      <Label htmlFor="participated-no" className="font-medium text-destructive cursor-pointer text-lg">
-                        No participé
-                      </Label>
-                      <p className="text-sm text-muted-foreground">
-                        Seleccione si no pudo realizar actividades
-                      </p>
+                  </Label>
+
+                  <Label
+                    htmlFor="participated-no"
+                    className={`block cursor-pointer rounded-lg border p-4 transition-colors ${participated === 'no' ? 'border-destructive bg-destructive/5' : 'border-border hover:border-destructive/50'}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <RadioGroupItem value="no" id="participated-no" className="mt-1" />
+                      <div>
+                        <div className="font-medium text-destructive text-lg leading-tight">
+                          No participé
+                        </div>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Seleccione si no pudo realizar actividades
+                        </p>
+                      </div>
                     </div>
-                  </div>
+                  </Label>
                 </RadioGroup>
               </div>
 
