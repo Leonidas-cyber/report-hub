@@ -29,7 +29,7 @@ import {
   getPreviousMonthYear,
 } from '@/types/report';
 import type { RoleType } from '@/types/report';
-import { AlertTriangle, Send, Settings, FileText } from 'lucide-react';
+import { AlertTriangle, Send, Settings } from 'lucide-react';
 
 const Index = () => {
   // Reports are always for the PREVIOUS month
@@ -148,8 +148,12 @@ const Index = () => {
       <nav className="bg-card border-b border-border sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <div className="icon-circle-primary flex-shrink-0">
-              <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
+            <div className="icon-circle-primary flex-shrink-0 overflow-hidden">
+              <img
+                src="/favicon-64.png?v=2"
+                alt="Congregación Arrayanes"
+                className="h-6 w-6 sm:h-7 sm:w-7 rounded-full object-cover"
+              />
             </div>
             <span className="font-bold text-sm sm:text-lg text-foreground truncate">
               Congregación Arrayanes

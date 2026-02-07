@@ -107,7 +107,7 @@ export function ReportsGrid({ reports, superintendents, onUpdateReport, onDelete
   return (
     <div className="space-y-6">
       {/* Filtros */}
-      <div className="flex flex-col sm:flex-row gap-4 p-4 bg-muted/30 rounded-lg">
+      <div className="flex flex-col sm:flex-row gap-4 p-4 rounded-xl border border-border/70 bg-muted/30">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -164,7 +164,7 @@ export function ReportsGrid({ reports, superintendents, onUpdateReport, onDelete
           <p className="text-lg">No se encontraron informes</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-6 xl:gap-8">
           {filteredReports.map((report) => (
             <ReportCard
               key={report.id}

@@ -13,8 +13,8 @@ interface ReportCardProps {
 
 export function ReportCard({ report, onEdit, onDelete }: ReportCardProps) {
   return (
-    <Card className="card-elevated hover:shadow-xl transition-all duration-300 flex flex-col">
-      <CardContent className="pt-6 flex-1">
+    <Card className="report-card flex flex-col h-full">
+      <CardContent className="pt-6 flex-1 space-y-0">
         {/* Header: Name and date */}
         <div className="mb-4">
           <h3 className="font-bold text-lg text-foreground leading-tight">
@@ -71,7 +71,7 @@ export function ReportCard({ report, onEdit, onDelete }: ReportCardProps) {
         </div>
 
         {/* Notes */}
-        <div className="bg-amber-50 dark:bg-amber-950/30 rounded-lg p-3">
+        <div className="rounded-lg border border-amber-200/60 bg-amber-50/90 p-3 dark:border-amber-900/40 dark:bg-amber-950/35">
           <div className="flex items-center gap-2 mb-1">
             <FileText className="h-4 w-4 text-amber-600" />
             <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Notas</p>
@@ -82,9 +82,9 @@ export function ReportCard({ report, onEdit, onDelete }: ReportCardProps) {
         </div>
       </CardContent>
 
-      <CardFooter className="pt-4 gap-2">
+      <CardFooter className="pt-4 gap-2 mt-auto">
         <Button 
-          className="flex-1"
+          className="flex-1 h-11"
           onClick={() => onEdit(report)}
         >
           <Edit2 className="h-4 w-4 mr-2" />
@@ -93,7 +93,7 @@ export function ReportCard({ report, onEdit, onDelete }: ReportCardProps) {
         {onDelete && (
           <Button 
             variant="destructive"
-            className="flex-1"
+            className="flex-1 h-11"
             onClick={() => onDelete(report)}
           >
             <Trash2 className="h-4 w-4 mr-2" />
