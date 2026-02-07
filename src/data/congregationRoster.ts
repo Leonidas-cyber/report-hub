@@ -3,10 +3,7 @@ export interface CongregationMember {
   groupNumber: number;
 }
 
-// Ajusta este número si cambia el padrón general.
-export const TOTAL_EXPECTED_REPORTERS = 96;
-
-// Padrón de referencia (uso administrativo interno)
+// Padrón base de referencia (uso administrativo interno)
 const CONGREGATION_ROSTER: CongregationMember[] = [
   // Grupo 1
   { fullName: 'Alberto Gonzalez', groupNumber: 1 },
@@ -42,6 +39,7 @@ const CONGREGATION_ROSTER: CongregationMember[] = [
   { fullName: 'Norma de Lopez', groupNumber: 2 },
   { fullName: 'Eduardo Lopez', groupNumber: 2 },
   { fullName: 'Mireya de Diaz', groupNumber: 2 },
+  { fullName: 'Victor Gonzalez', groupNumber: 2 },
   { fullName: 'Maria Eugenia Rossete', groupNumber: 2 },
   { fullName: 'Xavier Valencia', groupNumber: 2 },
   { fullName: 'Socorro Torres', groupNumber: 2 },
@@ -114,6 +112,9 @@ const CONGREGATION_ROSTER: CongregationMember[] = [
   { fullName: 'Bertha Chino', groupNumber: 5 },
   { fullName: 'Blanca de Montoya', groupNumber: 5 },
 ];
+
+// Se deriva del padrón cargado para evitar desfases en el conteo.
+export const TOTAL_EXPECTED_REPORTERS = CONGREGATION_ROSTER.length;
 
 export const normalizePersonName = (value: string): string =>
   value
