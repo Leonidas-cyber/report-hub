@@ -1,14 +1,14 @@
-import { useEffect, useState } from 'react';
-import { Bell, BellOff } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useEffect, useState } from "react";
+import { Bell, BellOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   getPushSubscriptionStatus,
   isPushNotificationSupported,
   subscribeToPushNotifications,
-} from '@/utils/pushNotifications';
-import { toast } from 'sonner';
+} from "@/utils/pushNotifications";
+import { toast } from "sonner";
 
-const SESSION_DISMISS_KEY = 'notif_onboarding_dismissed_session_v1';
+const SESSION_DISMISS_KEY = "notif_onboarding_dismissed_session_v1";
 
 export function NotificationOnboarding() {
   const [visible, setVisible] = useState(false);
@@ -21,16 +21,21 @@ export function NotificationOnboarding() {
     const check = async () => {
       if (!isPushNotificationSupported()) return;
 
-      // Si lo cerró en esta sesión, no volver a mostrar hasta la próxima visita.
-      const dismissedThisSession = sessionStorage.getItem(SESSION_DISMISS_KEY) === '1';
+      // Si lo cerró en esta sesión, no mostrar hasta la próxima visita.
+      const dismissedThisSession =
+        sessionStorage.getItem(SESSION_DISMISS_KEY) === "1";
       if (dismissedThisSession) return;
 
-      // Solo mostrar si NO están habilitadas (suscripción activa real)
+      // Mostrar SOLO si NO están habilitadas (suscripción real)
       const subscribed = await getPushSubscriptionStatus();
-      if (!mounted || subscribed) return;
+      if (!mounted) return;
 
-      const denied = Notification.permission === 'denied';
-      setIsDenied(denied);
+      if (subscribed) {
+        setVisible(false);
+        return;
+      }
+
+      setIsDenied(Notification.permission === "denied");
       setVisible(true);
     };
 
@@ -42,13 +47,15 @@ export function NotificationOnboarding() {
   }, []);
 
   const closeForSession = () => {
-    sessionStorage.setItem(SESSION_DISMISS_KEY, '1');
+    sessionStorage.setItem(SESSION_DISMISS_KEY, "1");
     setVisible(false);
   };
 
   const handleEnable = async () => {
     if (isDenied) {
-      toast.error('Notificaciones bloqueadas. Actívalas en la configuración del navegador.');
+      toast.error(
+        "Notificaciones bloqueadas. Actívalas en la configuración del navegador."
+      );
       closeForSession();
       return;
     }
@@ -56,21 +63,32 @@ export function NotificationOnboarding() {
     setIsLoading(true);
     try {
       const success = await subscribeToPushNotifications();
+
       if (success) {
-        toast.success('¡Notificaciones activadas correctamente!');
+        toast.success("¡Notificaciones activadas correctamente!");
         sessionStorage.removeItem(SESSION_DISMISS_KEY);
         setVisible(false);
+
+        // Recarga automática para reflejar estado de suscripción
+        setTimeout(() => {
+          window.location.reload();
+        }, 350);
+
+        return;
+      }
+
+      // Falló la suscripción
+      if (Notification.permission === "denied") {
+        setIsDenied(true);
+        toast.error(
+          "Permiso bloqueado. Habilítalo en la configuración del navegador."
+        );
       } else {
-        if (Notification.permission === 'denied') {
-          setIsDenied(true);
-          toast.error('Permiso bloqueado. Habilítalo en la configuración del navegador.');
-        } else {
-          toast.error('No se pudieron activar las notificaciones. Intenta nuevamente.');
-        }
+        toast.error("No se pudieron activar las notificaciones. Intenta nuevamente.");
       }
     } catch (error) {
-      console.error('Error al activar notificaciones:', error);
-      toast.error('Ocurrió un error al activar notificaciones.');
+      console.error("Error al activar notificaciones:", error);
+      toast.error("Ocurrió un error al activar notificaciones.");
     } finally {
       setIsLoading(false);
     }
@@ -91,24 +109,36 @@ export function NotificationOnboarding() {
           </div>
 
           <div className="flex-1">
-            <p className="text-base sm:text-lg font-semibold">Activar notificaciones</p>
+            <p className="text-base sm:text-lg font-semibold">
+              Activar notificaciones
+            </p>
             <p className="mt-1 text-sm sm:text-base text-muted-foreground leading-relaxed">
-              Para no olvidar su informe mensual, le recomendamos activar las notificaciones.
+              Para no olvidar su informe mensual, le recomendamos activar las
+              notificaciones.
             </p>
 
             {isDenied && (
               <p className="mt-2 text-xs sm:text-sm text-muted-foreground">
-                En este navegador están bloqueadas. Puede habilitarlas desde la configuración del sitio.
+                En este navegador están bloqueadas. Puede habilitarlas desde la
+                configuración del sitio.
               </p>
             )}
 
             <div className="mt-4 flex flex-wrap gap-2">
               {!isDenied && (
-                <Button onClick={handleEnable} disabled={isLoading} className="text-sm sm:text-base px-5">
-                  {isLoading ? 'Activando...' : 'Activar'}
+                <Button
+                  onClick={handleEnable}
+                  disabled={isLoading}
+                  className="text-sm sm:text-base px-5"
+                >
+                  {isLoading ? "Activando..." : "Activar"}
                 </Button>
               )}
-              <Button variant="outline" onClick={closeForSession} className="text-sm sm:text-base px-5">
+              <Button
+                variant="outline"
+                onClick={closeForSession}
+                className="text-sm sm:text-base px-5"
+              >
                 Ahora no
               </Button>
             </div>
@@ -118,3 +148,5 @@ export function NotificationOnboarding() {
     </div>
   );
 }
+
+export default NotificationOnboarding;
