@@ -440,33 +440,35 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
                 <span className="hidden sm:inline">Excel</span>
               </Button>
 
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" size="sm" className="px-2 sm:px-3">
-                    <Trash2 className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Borrar</span>
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent className="mx-4 max-w-md">
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Esta acción eliminará TODOS los informes de la base de datos.
-                      Esta acción no se puede deshacer. Se recomienda exportar a Excel
-                      antes de continuar.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-                    <AlertDialogCancel className="w-full sm:w-auto">Cancelar</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={onClearDatabase}
-                      className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
-                      Sí, borrar todo
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              {isSuperAdmin ? (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm" className="px-2 sm:px-3">
+                      <Trash2 className="h-4 w-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Borrar</span>
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="mx-4 max-w-md">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta acción eliminará TODOS los informes de la base de datos.
+                        Esta acción no se puede deshacer. Se recomienda exportar a Excel
+                        antes de continuar.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                      <AlertDialogCancel className="w-full sm:w-auto">Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={onClearDatabase}
+                        className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Sí, borrar todo
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              ) : null}
 
               <Button variant="outline" size="sm" onClick={handleSignOut} disabled={signingOut} className="px-2 sm:px-3">
                 <LogOut className="h-4 w-4 sm:mr-2" />

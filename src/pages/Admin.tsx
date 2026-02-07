@@ -56,11 +56,13 @@ const Admin = () => {
   };
 
   const handleClearDatabase = async () => {
+    if (!isSuperAdmin) {
+      toast.error('Solo un super administrador puede borrar todos los informes');
+      return;
+    }
+
     try {
-      const { error } = await supabase
-        .from('service_reports')
-        .delete()
-        .not('id', 'is', null);
+      const { error } = await (supabase.rpc as any)('clear_all_service_reports');
 
       if (error) throw error;
       await refetch();
