@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ReportsTable } from '@/components/ReportsTable';
 import { ReportsGrid } from '@/components/ReportsGrid';
 import { AdminHeader } from '@/components/AdminHeader';
@@ -60,11 +61,14 @@ interface ReportReviewFlagRow {
 
 const MISSING_TABLE_CODES = new Set(['42P01', 'PGRST205']);
 
+type AdminSection = 'seguimiento' | 'asistencia' | 'padron' | 'informes' | 'superadmin';
+
 const Admin = () => {
   const { user, isSuperAdmin } = useAuth();
   const { reports, loading, updateReport, deleteReport, refetch } = useServiceReports();
   const { superintendents } = useSuperintendents();
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [activeSection, setActiveSection] = useState<AdminSection>('seguimiento');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [attendanceRefreshKey, setAttendanceRefreshKey] = useState(0);
 
@@ -557,329 +561,160 @@ const Admin = () => {
         isRefreshing={isRefreshing}
       />
 
-      <main className="container mx-auto px-4 py-8 space-y-6">
-        <Card className="shadow-card">
-          <CardHeader>
-            <div className="flex flex-col gap-4">
-              <div>
-                <CardTitle className="text-2xl">Seguimiento mensual de informes</CardTitle>
-                <CardDescription>
-                  Periodo: <b>{targetMonth} {targetYear}</b> · Total esperado: <b>{totalExpected}</b> personas
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
+      <main className="container mx-auto px-4 py-8">
+        <Tabs
+          value={activeSection}
+          onValueChange={(value) => setActiveSection(value as AdminSection)}
+          className="space-y-5"
+        >
+          <Card className="shadow-card">
+            <CardContent className="p-3">
+              <TabsList className="h-auto w-full flex flex-wrap justify-start gap-2 bg-muted/40">
+                <TabsTrigger value="seguimiento">Seguimiento</TabsTrigger>
+                <TabsTrigger value="asistencia">Asistencia</TabsTrigger>
+                <TabsTrigger value="padron">Padrón</TabsTrigger>
+                <TabsTrigger value="informes">Informes</TabsTrigger>
+                <TabsTrigger value="superadmin">Super Admin</TabsTrigger>
+              </TabsList>
+            </CardContent>
+          </Card>
 
-          <CardContent className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-4">
-              <div className="rounded-xl border border-border bg-card p-4">
-                <p className="text-sm text-muted-foreground flex items-center gap-2">
-                  <Users className="h-4 w-4" /> Total esperado
-                </p>
-                <p className="text-3xl font-bold mt-1">{totalExpected}</p>
-              </div>
-
-              <div className="rounded-xl border border-success/40 bg-success/10 p-4">
-                <p className="text-sm text-muted-foreground flex items-center gap-2">
-                  <UserCheck className="h-4 w-4 text-success" /> Ya enviaron
-                </p>
-                <p className="text-3xl font-bold mt-1 text-success">{submittedKnownCount}</p>
-              </div>
-
-              <div className="rounded-xl border border-warning/40 bg-warning/10 p-4">
-                <p className="text-sm text-muted-foreground flex items-center gap-2">
-                  <UserX className="h-4 w-4 text-warning" /> Faltan por enviar
-                </p>
-                <p className="text-3xl font-bold mt-1 text-amber-700 dark:text-amber-400">{missingCount}</p>
-              </div>
-
-              <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4">
-                <p className="text-sm text-muted-foreground flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-destructive" /> Grupo erróneo
-                </p>
-                <p className="text-3xl font-bold mt-1 text-destructive">{wrongGroupMembers.length}</p>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between text-sm mb-2">
-                <span className="text-muted-foreground">Progreso de entrega</span>
-                <span className="font-semibold text-primary">{progressPercent}%</span>
-              </div>
-              <Progress value={progressPercent} className="h-3" />
-            </div>
-
-            <p className="text-xs text-muted-foreground">
-              Conteo por nombre único en el periodo. Si hay correcciones de padrón o duplicados marcados,
-              también se consideran aquí.
-            </p>
-          </CardContent>
-        </Card>
-
-        <section className="space-y-4">
-          <div>
-            <h2 className="text-2xl font-semibold">Sección de asistencia</h2>
-            <p className="text-sm text-muted-foreground">
-              Registro de asistencia y visualización de estadísticas por reunión.
-            </p>
-          </div>
-
-          <div className="grid gap-6 xl:grid-cols-3">
-            <div className="xl:col-span-1">
-              <AttendanceForm onSuccess={() => setAttendanceRefreshKey((prev) => prev + 1)} />
-            </div>
-            <div className="xl:col-span-2" key={attendanceRefreshKey}>
-              <AttendanceStats />
-            </div>
-          </div>
-        </section>
-
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle className="text-xl flex items-center gap-2">
-              <ListChecks className="h-5 w-5" />
-              Control de padrón (solo administración)
-            </CardTitle>
-            <CardDescription>
-              Puedes ver quién falta, detectar grupo erróneo y resolver no encontrados como
-              <b> otra persona</b>, <b>duplicado</b> o <b>agregar al padrón</b>.
-            </CardDescription>
-          </CardHeader>
-
-          <CardContent className="space-y-4">
-            <div className="rounded-xl border border-border p-4">
-              <p className="text-sm font-semibold mb-3 flex items-center gap-2">
-                <UserPlus className="h-4 w-4" />
-                Ajuste rápido de padrón
-              </p>
-              <div className="grid gap-2 md:grid-cols-[1fr,180px,auto]">
-                <Input
-                  value={manualMemberName}
-                  onChange={(e) => setManualMemberName(e.target.value)}
-                  placeholder="Nombre completo (ej. Victor Gonzalez)"
-                />
-                <select
-                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                  value={manualMemberGroup}
-                  onChange={(e) => setManualMemberGroup(Number(e.target.value))}
-                >
-                  {[1, 2, 3, 4, 5].map((group) => (
-                    <option key={group} value={group}>
-                      Grupo {group}
-                    </option>
-                  ))}
-                </select>
-                <Button onClick={handleAddManualMember}>Agregar al padrón</Button>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                Úsalo cuando la persona no exista en el padrón base.
-              </p>
-
-              {customMembers.length > 0 && (
-                <div className="mt-3 max-h-28 overflow-auto space-y-2 pr-1">
-                  {customMembers.map((member) => (
-                    <div key={member.id} className="flex items-center justify-between rounded-md border border-border/60 px-2 py-1.5">
-                      <p className="text-xs">
-                        {member.full_name} · <span className="text-muted-foreground">Grupo {member.group_number}</span>
-                      </p>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleRemoveCustomMember(member.id, member.full_name)}
-                      >
-                        Quitar
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div className="rounded-xl border border-border p-4">
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <h3 className="font-semibold">Faltan por enviar</h3>
-                  <Badge variant="secondary">{missingCount}</Badge>
-                </div>
-
-                {missingCount === 0 ? (
-                  <p className="text-sm text-muted-foreground">Excelente: no hay pendientes en el padrón.</p>
-                ) : (
-                  <div className="max-h-72 overflow-auto pr-1 space-y-2">
-                    {missingMembersDisplay.map(({ member }) => (
-                      <div
-                        key={`${member.groupNumber}-${member.fullName}`}
-                        className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2"
-                      >
-                        <p className="text-sm font-medium">{member.fullName}</p>
-                        <Badge variant="outline">Grupo {member.groupNumber}</Badge>
-                      </div>
-                    ))}
+          <TabsContent value="seguimiento">
+            <Card className="shadow-card">
+              <CardHeader>
+                <div className="flex flex-col gap-4">
+                  <div>
+                    <CardTitle className="text-2xl">Seguimiento mensual de informes</CardTitle>
+                    <CardDescription>
+                      Periodo: <b>{targetMonth} {targetYear}</b> · Total esperado: <b>{totalExpected}</b> personas
+                    </CardDescription>
                   </div>
-                )}
-              </div>
-
-              <div className="space-y-4">
-                <div className="rounded-xl border border-destructive/30 p-4">
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <h3 className="font-semibold">Posible grupo erróneo</h3>
-                    <Badge variant="destructive">{wrongGroupMembers.length}</Badge>
-                  </div>
-
-                  {wrongGroupMembers.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Sin diferencias detectadas contra el padrón.</p>
-                  ) : (
-                    <div className="max-h-40 overflow-auto pr-1 space-y-2">
-                      {wrongGroupMembers.map(({ member, selectedGroup, report }) => (
-                        <div
-                          key={report?.id || `${member.groupNumber}-${member.fullName}`}
-                          className="rounded-lg border border-destructive/30 px-3 py-2"
-                        >
-                          <p className="text-sm font-medium">{member.fullName}</p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Padrón: <b>Grupo {member.groupNumber}</b> · Enviado en: <b>Grupo {selectedGroup}</b>
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
+              </CardHeader>
 
-                <div className="rounded-xl border border-border p-4">
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <h3 className="font-semibold">No encontrados en padrón</h3>
-                    <Badge variant="secondary">{unresolvedUnknownSubmitters.length}</Badge>
-                  </div>
-
-                  {unresolvedUnknownSubmitters.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      Todos los envíos quedaron resueltos contra el padrón.
+              <CardContent className="space-y-5">
+                <div className="grid gap-4 md:grid-cols-4">
+                  <div className="rounded-xl border border-border bg-card p-4">
+                    <p className="text-sm text-muted-foreground flex items-center gap-2">
+                      <Users className="h-4 w-4" /> Total esperado
                     </p>
-                  ) : (
-                    <div className="max-h-64 overflow-auto pr-1 space-y-2">
-                      {unresolvedUnknownSubmitters.map((report) => {
-                        const maybeMember = findCongregationMemberByName(report.fullName);
-                        const defaultGroup = report.superintendentGroupNumber ?? 1;
-                        const selectedGroup = selectedGroupByReportId[report.id] ?? defaultGroup;
-
-                        return (
-                          <div key={report.id} className="rounded-lg border border-border/60 px-3 py-2 space-y-2">
-                            <div>
-                              <p className="text-sm font-medium">{report.fullName}</p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {maybeMember
-                                  ? `Sugerencia: Grupo ${maybeMember.groupNumber}`
-                                  : 'Revisar ortografía o resolver desde los botones.'}
-                              </p>
-                            </div>
-
-                            <div className="grid gap-2">
-                              <select
-                                className="h-9 rounded-md border border-input bg-background px-2 text-xs"
-                                value={selectedCanonicalByReportId[report.id] ?? ''}
-                                onChange={(e) =>
-                                  setSelectedCanonicalByReportId((prev) => ({
-                                    ...prev,
-                                    [report.id]: e.target.value,
-                                  }))
-                                }
-                              >
-                                <option value="">Seleccionar persona correcta...</option>
-                                {rosterOptions.map((member) => (
-                                  <option
-                                    key={`${member.groupNumber}-${member.fullName}`}
-                                    value={member.fullName}
-                                  >
-                                    {member.fullName} (Grupo {member.groupNumber})
-                                  </option>
-                                ))}
-                              </select>
-
-                              <div className="flex flex-wrap gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="secondary"
-                                  disabled={busyReportId === report.id}
-                                  onClick={() => handleMapAsOtherPerson(report.id, report.fullName)}
-                                >
-                                  Es otra persona
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  disabled={busyReportId === report.id}
-                                  onClick={() => handleMarkAsDuplicate(report.id)}
-                                >
-                                  Marcar duplicado
-                                </Button>
-                              </div>
-
-                              <div className="flex items-center gap-2">
-                                <select
-                                  className="h-9 rounded-md border border-input bg-background px-2 text-xs"
-                                  value={selectedGroup}
-                                  onChange={(e) =>
-                                    setSelectedGroupByReportId((prev) => ({
-                                      ...prev,
-                                      [report.id]: Number(e.target.value),
-                                    }))
-                                  }
-                                >
-                                  {[1, 2, 3, 4, 5].map((group) => (
-                                    <option key={group} value={group}>
-                                      Grupo {group}
-                                    </option>
-                                  ))}
-                                </select>
-
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={busyReportId === report.id}
-                                  onClick={() =>
-                                    handleAddUnknownToRoster(
-                                      report.id,
-                                      report.fullName,
-                                      report.superintendentGroupNumber
-                                    )
-                                  }
-                                >
-                                  Agregar al padrón
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                <div className="rounded-xl border border-border p-4">
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <h3 className="font-semibold">Duplicados marcados</h3>
-                    <Badge variant="secondary">{duplicateMarkedReports.length}</Badge>
+                    <p className="text-3xl font-bold mt-1">{totalExpected}</p>
                   </div>
 
-                  {duplicateMarkedReports.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No hay duplicados marcados.</p>
-                  ) : (
-                    <div className="max-h-36 overflow-auto pr-1 space-y-2">
-                      {duplicateMarkedReports.map((report) => (
-                        <div key={report.id} className="rounded-lg border border-border/60 px-3 py-2 flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-medium">{report.fullName}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {report.month} {report.year}
-                            </p>
-                          </div>
+                  <div className="rounded-xl border border-success/40 bg-success/10 p-4">
+                    <p className="text-sm text-muted-foreground flex items-center gap-2">
+                      <UserCheck className="h-4 w-4 text-success" /> Ya enviaron
+                    </p>
+                    <p className="text-3xl font-bold mt-1 text-success">{submittedKnownCount}</p>
+                  </div>
+
+                  <div className="rounded-xl border border-warning/40 bg-warning/10 p-4">
+                    <p className="text-sm text-muted-foreground flex items-center gap-2">
+                      <UserX className="h-4 w-4 text-warning" /> Faltan por enviar
+                    </p>
+                    <p className="text-3xl font-bold mt-1 text-amber-700 dark:text-amber-400">{missingCount}</p>
+                  </div>
+
+                  <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4">
+                    <p className="text-sm text-muted-foreground flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-destructive" /> Grupo erróneo
+                    </p>
+                    <p className="text-3xl font-bold mt-1 text-destructive">{wrongGroupMembers.length}</p>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between text-sm mb-2">
+                    <span className="text-muted-foreground">Progreso de entrega</span>
+                    <span className="font-semibold text-primary">{progressPercent}%</span>
+                  </div>
+                  <Progress value={progressPercent} className="h-3" />
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Conteo por nombre único en el periodo. Si hay correcciones de padrón o duplicados marcados,
+                  también se consideran aquí.
+                </p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="asistencia">
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="text-2xl">Sección de asistencia</CardTitle>
+                <CardDescription>
+                  Registro de asistencia y visualización de estadísticas por reunión.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-6 xl:grid-cols-3">
+                  <div className="xl:col-span-1">
+                    <AttendanceForm onSuccess={() => setAttendanceRefreshKey((prev) => prev + 1)} />
+                  </div>
+                  <div className="xl:col-span-2" key={attendanceRefreshKey}>
+                    <AttendanceStats />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="padron">
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="text-xl flex items-center gap-2">
+                  <ListChecks className="h-5 w-5" />
+                  Control de padrón (solo administración)
+                </CardTitle>
+                <CardDescription>
+                  Puedes ver quién falta, detectar grupo erróneo y resolver no encontrados como
+                  <b> otra persona</b>, <b>duplicado</b> o <b>agregar al padrón</b>.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+                <div className="rounded-xl border border-border p-4">
+                  <p className="text-sm font-semibold mb-3 flex items-center gap-2">
+                    <UserPlus className="h-4 w-4" />
+                    Ajuste rápido de padrón
+                  </p>
+                  <div className="grid gap-2 md:grid-cols-[1fr,180px,auto]">
+                    <Input
+                      value={manualMemberName}
+                      onChange={(e) => setManualMemberName(e.target.value)}
+                      placeholder="Nombre completo (ej. Victor Gonzalez)"
+                    />
+                    <select
+                      className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                      value={manualMemberGroup}
+                      onChange={(e) => setManualMemberGroup(Number(e.target.value))}
+                    >
+                      {[1, 2, 3, 4, 5].map((group) => (
+                        <option key={group} value={group}>
+                          Grupo {group}
+                        </option>
+                      ))}
+                    </select>
+                    <Button onClick={handleAddManualMember}>Agregar al padrón</Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Úsalo cuando la persona no exista en el padrón base.
+                  </p>
+
+                  {customMembers.length > 0 && (
+                    <div className="mt-3 max-h-28 overflow-auto space-y-2 pr-1">
+                      {customMembers.map((member) => (
+                        <div key={member.id} className="flex items-center justify-between rounded-md border border-border/60 px-2 py-1.5">
+                          <p className="text-xs">
+                            {member.full_name} · <span className="text-muted-foreground">Grupo {member.group_number}</span>
+                          </p>
                           <Button
                             size="sm"
-                            variant="outline"
-                            disabled={busyReportId === report.id}
-                            onClick={() => handleUnmarkDuplicate(report.id)}
+                            variant="ghost"
+                            onClick={() => handleRemoveCustomMember(member.id, member.full_name)}
                           >
-                            Quitar marca
+                            Quitar
                           </Button>
                         </div>
                       ))}
@@ -887,78 +722,276 @@ const Admin = () => {
                   )}
                 </div>
 
-                {adjustmentsLoading && (
-                  <p className="text-xs text-muted-foreground">Actualizando ajustes de padrón…</p>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-xl border border-border p-4">
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <h3 className="font-semibold">Faltan por enviar</h3>
+                      <Badge variant="secondary">{missingCount}</Badge>
+                    </div>
+
+                    {missingCount === 0 ? (
+                      <p className="text-sm text-muted-foreground">Excelente: no hay pendientes en el padrón.</p>
+                    ) : (
+                      <div className="max-h-72 overflow-auto pr-1 space-y-2">
+                        {missingMembersDisplay.map(({ member }) => (
+                          <div
+                            key={`${member.groupNumber}-${member.fullName}`}
+                            className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2"
+                          >
+                            <p className="text-sm font-medium">{member.fullName}</p>
+                            <Badge variant="outline">Grupo {member.groupNumber}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-destructive/30 p-4">
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <h3 className="font-semibold">Posible grupo erróneo</h3>
+                        <Badge variant="destructive">{wrongGroupMembers.length}</Badge>
+                      </div>
+
+                      {wrongGroupMembers.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Sin diferencias detectadas contra el padrón.</p>
+                      ) : (
+                        <div className="max-h-40 overflow-auto pr-1 space-y-2">
+                          {wrongGroupMembers.map(({ member, selectedGroup, report }) => (
+                            <div
+                              key={report?.id || `${member.groupNumber}-${member.fullName}`}
+                              className="rounded-lg border border-destructive/30 px-3 py-2"
+                            >
+                              <p className="text-sm font-medium">{member.fullName}</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Padrón: <b>Grupo {member.groupNumber}</b> · Enviado en: <b>Grupo {selectedGroup}</b>
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-xl border border-border p-4">
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <h3 className="font-semibold">No encontrados en padrón</h3>
+                        <Badge variant="secondary">{unresolvedUnknownSubmitters.length}</Badge>
+                      </div>
+
+                      {unresolvedUnknownSubmitters.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          Todos los envíos quedaron resueltos contra el padrón.
+                        </p>
+                      ) : (
+                        <div className="max-h-64 overflow-auto pr-1 space-y-2">
+                          {unresolvedUnknownSubmitters.map((report) => {
+                            const maybeMember = findCongregationMemberByName(report.fullName);
+                            const defaultGroup = report.superintendentGroupNumber ?? 1;
+                            const selectedGroup = selectedGroupByReportId[report.id] ?? defaultGroup;
+
+                            return (
+                              <div key={report.id} className="rounded-lg border border-border/60 px-3 py-2 space-y-2">
+                                <div>
+                                  <p className="text-sm font-medium">{report.fullName}</p>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {maybeMember
+                                      ? `Sugerencia: Grupo ${maybeMember.groupNumber}`
+                                      : 'Revisar ortografía o resolver desde los botones.'}
+                                  </p>
+                                </div>
+
+                                <div className="grid gap-2">
+                                  <select
+                                    className="h-9 rounded-md border border-input bg-background px-2 text-xs"
+                                    value={selectedCanonicalByReportId[report.id] ?? ''}
+                                    onChange={(e) =>
+                                      setSelectedCanonicalByReportId((prev) => ({
+                                        ...prev,
+                                        [report.id]: e.target.value,
+                                      }))
+                                    }
+                                  >
+                                    <option value="">Seleccionar persona correcta...</option>
+                                    {rosterOptions.map((member) => (
+                                      <option
+                                        key={`${member.groupNumber}-${member.fullName}`}
+                                        value={member.fullName}
+                                      >
+                                        {member.fullName} (Grupo {member.groupNumber})
+                                      </option>
+                                    ))}
+                                  </select>
+
+                                  <div className="flex flex-wrap gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="secondary"
+                                      disabled={busyReportId === report.id}
+                                      onClick={() => handleMapAsOtherPerson(report.id, report.fullName)}
+                                    >
+                                      Es otra persona
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      disabled={busyReportId === report.id}
+                                      onClick={() => handleMarkAsDuplicate(report.id)}
+                                    >
+                                      Marcar duplicado
+                                    </Button>
+                                  </div>
+
+                                  <div className="flex items-center gap-2">
+                                    <select
+                                      className="h-9 rounded-md border border-input bg-background px-2 text-xs"
+                                      value={selectedGroup}
+                                      onChange={(e) =>
+                                        setSelectedGroupByReportId((prev) => ({
+                                          ...prev,
+                                          [report.id]: Number(e.target.value),
+                                        }))
+                                      }
+                                    >
+                                      {[1, 2, 3, 4, 5].map((group) => (
+                                        <option key={group} value={group}>
+                                          Grupo {group}
+                                        </option>
+                                      ))}
+                                    </select>
+
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={busyReportId === report.id}
+                                      onClick={() =>
+                                        handleAddUnknownToRoster(
+                                          report.id,
+                                          report.fullName,
+                                          report.superintendentGroupNumber
+                                        )
+                                      }
+                                    >
+                                      Agregar al padrón
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-xl border border-border p-4">
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <h3 className="font-semibold">Duplicados marcados</h3>
+                        <Badge variant="secondary">{duplicateMarkedReports.length}</Badge>
+                      </div>
+
+                      {duplicateMarkedReports.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No hay duplicados marcados.</p>
+                      ) : (
+                        <div className="max-h-36 overflow-auto pr-1 space-y-2">
+                          {duplicateMarkedReports.map((report) => (
+                            <div key={report.id} className="rounded-lg border border-border/60 px-3 py-2 flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-medium">{report.fullName}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {report.month} {report.year}
+                                </p>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={busyReportId === report.id}
+                                onClick={() => handleUnmarkDuplicate(report.id)}
+                              >
+                                Quitar marca
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {adjustmentsLoading && (
+                      <p className="text-xs text-muted-foreground">Actualizando ajustes de padrón…</p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="informes">
+            <Card className="shadow-card">
+              <CardHeader>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-2xl">Gestión de Informes</CardTitle>
+                    <CardDescription>
+                      Administra y revisa los informes de servicio enviados
+                    </CardDescription>
+                  </div>
+
+                  <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-1">
+                    <Button
+                      variant={viewMode === 'table' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('table')}
+                    >
+                      <Table2 className="h-4 w-4 mr-2" />
+                      Tabla
+                    </Button>
+                    <Button
+                      variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('grid')}
+                    >
+                      <LayoutGrid className="h-4 w-4 mr-2" />
+                      Tarjetas
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent>
+                {viewMode === 'table' ? (
+                  <ReportsTable
+                    reports={reports}
+                    superintendents={sortedSuperintendents}
+                    onUpdateReport={updateReport}
+                  />
+                ) : (
+                  <ReportsGrid
+                    reports={reports}
+                    superintendents={sortedSuperintendents}
+                    onUpdateReport={updateReport}
+                    onDeleteReport={deleteReport}
+                  />
                 )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        <Card className="shadow-card">
-          <CardHeader>
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div>
-                <CardTitle className="text-2xl">Gestión de Informes</CardTitle>
-                <CardDescription>
-                  Administra y revisa los informes de servicio enviados
-                </CardDescription>
-              </div>
-
-              <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-1">
-                <Button
-                  variant={viewMode === 'table' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => setViewMode('table')}
-                >
-                  <Table2 className="h-4 w-4 mr-2" />
-                  Tabla
-                </Button>
-                <Button
-                  variant={viewMode === 'grid' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => setViewMode('grid')}
-                >
-                  <LayoutGrid className="h-4 w-4 mr-2" />
-                  Tarjetas
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-
-          <CardContent>
-            {viewMode === 'table' ? (
-              <ReportsTable
-                reports={reports}
-                superintendents={sortedSuperintendents}
-                onUpdateReport={updateReport}
-              />
+          <TabsContent value="superadmin">
+            {isSuperAdmin ? (
+              <SuperAdminPanel currentUserId={user?.id} />
             ) : (
-              <ReportsGrid
-                reports={reports}
-                superintendents={sortedSuperintendents}
-                onUpdateReport={updateReport}
-                onDeleteReport={deleteReport}
-              />
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <ShieldCheck className="h-4 w-4" />
+                    Funciones de super administrador
+                  </CardTitle>
+                  <CardDescription>
+                    Este bloque se habilita únicamente para cuentas con rol <b>super_admin</b>.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
             )}
-          </CardContent>
-        </Card>
-
-        {isSuperAdmin ? (
-          <SuperAdminPanel currentUserId={user?.id} />
-        ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <ShieldCheck className="h-4 w-4" />
-                Funciones de super administrador
-              </CardTitle>
-              <CardDescription>
-                Este bloque se habilita únicamente para cuentas con rol <b>super_admin</b>.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        )}
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );
