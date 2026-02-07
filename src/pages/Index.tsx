@@ -17,6 +17,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSuperintendents } from '@/hooks/useSuperintendents';
 import { SuccessModal } from '@/components/SuccessModal';
 import { NotificationPrompt } from '@/components/NotificationPrompt';
+import { NotificationOnboarding } from '@/components/NotificationOnboarding';
 import {
   setCurrentUser,
   clearCurrentUser,
@@ -379,6 +380,8 @@ const Index = () => {
         onClose={() => setShowSuccess(false)} 
         month={reportMonth}
       />
+
+      <NotificationOnboarding />
     </div>
   );
 };
