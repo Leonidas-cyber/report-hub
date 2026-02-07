@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSuperintendents } from '@/hooks/useSuperintendents';
 import { SuccessModal } from '@/components/SuccessModal';
 import { NotificationPrompt } from '@/components/NotificationPrompt';
+import {
+  setCurrentUser,
+  clearCurrentUser,
+  shouldShowReminderForMonth,
+  markCurrentSubscriptionAsReported,
+} from '@/utils/pushNotifications';
 import { 
   ROLES, 
   getPreviousMonth,
@@ -40,8 +46,44 @@ const Index = () => {
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showReminder, setShowReminder] = useState(true);
 
   const showHoursField = role === 'precursor_auxiliar' || role === 'precursor_regular';
+
+  useEffect(() => {
+    let mounted = true;
+
+    const localStorageKey = `report_submitted_${reportMonth}_${reportYear}`;
+    const submittedLocally = localStorage.getItem(localStorageKey) === '1';
+
+    if (submittedLocally) {
+      setShowReminder(false);
+    }
+
+    const bootstrap = async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        setCurrentUser(user?.email ?? null);
+
+        const shouldShow = await shouldShowReminderForMonth(reportMonth, reportYear);
+        if (mounted) {
+          setShowReminder(!submittedLocally && shouldShow);
+        }
+      } catch (err) {
+        console.warn('No se pudo validar estado de recordatorio:', err);
+      }
+    };
+
+    bootstrap();
+
+    return () => {
+      mounted = false;
+      clearCurrentUser();
+    };
+  }, [reportMonth, reportYear]);
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -77,6 +119,10 @@ const Index = () => {
       });
 
       if (error) throw error;
+
+      await markCurrentSubscriptionAsReported(reportMonth, reportYear);
+      localStorage.setItem(`report_submitted_${reportMonth}_${reportYear}`, '1');
+      setShowReminder(false);
 
       // Show success modal
       setShowSuccess(true);
@@ -146,13 +192,15 @@ const Index = () => {
           </CardHeader>
 
           <CardContent>
-            {/* Recordatorio */}
-            <div className="alert-reminder flex items-center gap-3 mb-6">
-              <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0" />
-              <div>
-                <strong>Recordatorio:</strong> Aún no has enviado tu informe correspondiente a {reportMonth}.
+            {/* Recordatorio (solo si aún no ha enviado) */}
+            {showReminder && (
+              <div className="alert-reminder flex items-center gap-3 mb-6">
+                <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0" />
+                <div>
+                  <strong>Recordatorio:</strong> Aún no has enviado tu informe correspondiente a {reportMonth}.
+                </div>
               </div>
-            </div>
+            )}
 
             <p className="text-center text-sm text-muted-foreground mb-6">
               Complete todos los campos requeridos
