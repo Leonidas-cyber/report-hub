@@ -91,19 +91,26 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
 };
 
 export const getVapidPublicKey = async (): Promise<string | null> => {
-  // Preferred: frontend env
+  // 1) Preferred: frontend env
   const envKey = (import.meta as any)?.env?.VITE_VAPID_PUBLIC_KEY as string | undefined;
   if (envKey && envKey.trim().length > 0) return envKey.trim();
 
-  // Optional fallback function
-  const { data, error } = await supabase.functions.invoke('get-vapid-public-key');
+  // 2) Fallback: edge function that exposes ONLY the public key
+  try {
+    const { data, error } = await supabase.functions.invoke('get-vapid-public-key', {
+      body: {},
+    });
 
-  if (error || !data?.publicKey) {
-    console.error('Failed to get VAPID public key:', error);
-    return null;
+    if (!error && typeof (data as any)?.publicKey === 'string' && (data as any).publicKey.trim().length > 0) {
+      return (data as any).publicKey.trim();
+    }
+
+    console.error('Failed to get VAPID public key from function:', error || data);
+  } catch (err) {
+    console.error('VAPID fallback invocation failed:', err);
   }
 
-  return data.publicKey;
+  return null;
 };
 
 
@@ -316,10 +323,39 @@ export const markCurrentSubscriptionAsReported = async (
   try {
     const userEmail = await getSafeCurrentUserEmail();
     const monthNorm = normalizeMonth(month);
+    const fullNameNorm = (fullName || '').trim().toLowerCase();
 
-    // 1) Find all active subscriptions for current user.
-    //    If we don't have email, fall back to current endpoint only.
-    let subscriptions: any[] = [];
+    const endpointSet = new Set<string>();
+
+    if (currentSubscription?.endpoint) {
+      endpointSet.add(currentSubscription.endpoint);
+    }
+
+    // Always try to read current browser subscription, even if app was reloaded
+    try {
+      if ('serviceWorker' in navigator) {
+        const registration = await getOrRegisterServiceWorker();
+        const swSub = await registration.pushManager.getSubscription();
+        const swJson = swSub?.toJSON();
+        if (swSub?.endpoint) {
+          endpointSet.add(swSub.endpoint);
+          if (swJson?.keys?.p256dh && swJson?.keys?.auth) {
+            currentSubscription = {
+              endpoint: swSub.endpoint,
+              keys: {
+                p256dh: swJson.keys.p256dh,
+                auth: swJson.keys.auth,
+              },
+            };
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Could not read SW subscription while marking report:', err);
+    }
+
+    // Collect candidate rows by user_email / endpoint / (optional) full name
+    const mapByEndpoint = new Map<string, any>();
 
     if (userEmail) {
       const { data, error } = await supabase
@@ -331,21 +367,59 @@ export const markCurrentSubscriptionAsReported = async (
         console.warn('Could not read subscriptions by user_email:', error.message);
       }
 
-      subscriptions = data ?? [];
+      (data ?? []).forEach((row: any) => {
+        if (row?.endpoint) mapByEndpoint.set(row.endpoint, row);
+      });
     }
 
-    if (!subscriptions.length && currentSubscription?.endpoint) {
-      const { data } = await supabase
+    if (endpointSet.size > 0) {
+      const endpoints = [...endpointSet];
+      const { data, error } = await supabase
         .from('push_subscriptions')
         .select('*')
-        .eq('endpoint', currentSubscription.endpoint)
-        .limit(1);
+        .in('endpoint', endpoints);
 
-      subscriptions = data ?? [];
+      if (error) {
+        console.warn('Could not read subscriptions by endpoint:', error.message);
+      }
+
+      (data ?? []).forEach((row: any) => {
+        if (row?.endpoint) mapByEndpoint.set(row.endpoint, row);
+      });
+    }
+
+    // Last fallback for unauthenticated users: match by normalized name (if provided)
+    if (!userEmail && fullNameNorm) {
+      const { data, error } = await supabase
+        .from('push_subscriptions')
+        .select('*')
+        .eq('subscriber_name_norm', fullNameNorm)
+        .limit(10);
+
+      if (error) {
+        console.warn('Could not read subscriptions by subscriber_name_norm:', error.message);
+      }
+
+      (data ?? []).forEach((row: any) => {
+        if (row?.endpoint) mapByEndpoint.set(row.endpoint, row);
+      });
+    }
+
+    let subscriptions = [...mapByEndpoint.values()];
+
+    // If still none but we do have the current endpoint, create a synthetic row for upsert
+    if (!subscriptions.length && currentSubscription?.endpoint) {
+      subscriptions = [
+        {
+          endpoint: currentSubscription.endpoint,
+          keys_p256dh: currentSubscription.keys.p256dh,
+          keys_auth: currentSubscription.keys.auth,
+        },
+      ];
     }
 
     if (!subscriptions.length) {
-      // Still keep local cache so reminder disappears for this browser.
+      // Keep local cache so reminder disappears for this browser
       if (userEmail) {
         try {
           localStorage.setItem(submittedCacheKey(userEmail, monthNorm, year), '1');
@@ -359,20 +433,28 @@ export const markCurrentSubscriptionAsReported = async (
     const now = new Date().toISOString();
 
     for (const sub of subscriptions) {
-      const displayName = fullName || sub.subscriber_name || 'Usuario';
+      const displayName = (fullName || sub.subscriber_name || 'Usuario').trim();
+      const p256dh = sub.keys_p256dh ?? currentSubscription?.keys?.p256dh;
+      const auth = sub.keys_auth ?? currentSubscription?.keys?.auth;
+
+      if (!sub.endpoint || !p256dh || !auth) {
+        console.warn('Skipping mark-as-reported due to incomplete subscription row', sub?.endpoint);
+        continue;
+      }
 
       const payload: any = {
         endpoint: sub.endpoint,
-        keys_p256dh: sub.keys_p256dh,
-        keys_auth: sub.keys_auth,
+        keys_p256dh: p256dh,
+        keys_auth: auth,
         subscriber_name: displayName,
-        subscriber_name_norm: displayName.trim().toLowerCase(),
+        subscriber_name_norm: displayName.toLowerCase(),
         last_report_month: monthNorm,
         last_report_year: year,
         is_active: true,
         updated_at: now,
         last_report_updated_at: now,
       };
+
       if (userEmail || sub.user_email) payload.user_email = userEmail || sub.user_email;
 
       const { error: upsertError } = await supabase
@@ -380,26 +462,8 @@ export const markCurrentSubscriptionAsReported = async (
         .upsert(payload, { onConflict: 'endpoint' });
 
       if (upsertError) {
-        // fallback to older schema
-        const { error: fallbackError } = await supabase
-          .from('push_subscriptions')
-          .upsert(
-            {
-              endpoint: sub.endpoint,
-              keys_p256dh: sub.keys_p256dh,
-              keys_auth: sub.keys_auth,
-              subscriber_name: displayName,
-              subscriber_name_norm: displayName.trim().toLowerCase(),
-              last_report_month: monthNorm,
-              last_report_year: year,
-            } as any,
-            { onConflict: 'endpoint' },
-          );
-
-        if (fallbackError) {
-          console.error('Failed to reinsert marked subscription:', fallbackError);
-          return false;
-        }
+        console.error('Failed to upsert mark-as-reported row:', upsertError);
+        return false;
       }
     }
 

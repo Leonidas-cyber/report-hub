@@ -120,7 +120,7 @@ const Index = () => {
 
       if (error) throw error;
 
-      await markCurrentSubscriptionAsReported(reportMonth, reportYear);
+      await markCurrentSubscriptionAsReported(reportMonth, reportYear, fullName.trim());
       localStorage.setItem(`report_submitted_${reportMonth}_${reportYear}`, '1');
       setShowReminder(false);
 

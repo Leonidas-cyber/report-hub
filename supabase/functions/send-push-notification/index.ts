@@ -13,6 +13,19 @@ const normalizeMonth = (value: unknown): string | null => {
   return v || null;
 };
 
+const getPreviousMonthAndYear = (baseDate = new Date()): { month: string; year: number } => {
+  const months = [
+    'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+    'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+  ];
+
+  const m = baseDate.getMonth();
+  const y = baseDate.getFullYear();
+
+  if (m === 0) return { month: months[11], year: y - 1 };
+  return { month: months[m - 1], year: y };
+};
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -44,8 +57,16 @@ Deno.serve(async (req) => {
       ? body.message.trim()
       : '¡Recordatorio: Envía tu informe mensual de servicio!';
 
-    const targetMonth = normalizeMonth(body?.targetMonth);
-    const targetYear = Number.isFinite(Number(body?.targetYear)) ? Number(body.targetYear) : null;
+    let targetMonth = normalizeMonth(body?.targetMonth);
+    let targetYear = Number.isFinite(Number(body?.targetYear)) ? Number(body.targetYear) : null;
+
+    // Safety default: if admin broadcast doesn't pass target period,
+    // use previous month automatically to avoid reminding users who already submitted.
+    if (!testMode && (!targetMonth || !targetYear)) {
+      const fallback = getPreviousMonthAndYear();
+      targetMonth = targetMonth || fallback.month;
+      targetYear = targetYear || fallback.year;
+    }
 
     if (!vapidPublicKey || !vapidPrivateKey) {
       throw new Error('VAPID keys not configured');
@@ -104,6 +125,10 @@ Deno.serve(async (req) => {
     // Filter by report period only for broadcast reminders
     const eligibleSubscriptions = subscriptions.filter((sub: any) => {
       if (testMode) return true;
+
+      // Respect explicit unsubscribed devices
+      if (sub?.is_active === false) return false;
+
       if (!targetMonth || !targetYear) return true;
 
       const lastMonth = normalizeMonth(sub.last_report_month);
