@@ -60,11 +60,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!/column .*role.* does not exist/i.test(error.message || '')) {
           console.warn('No se pudo cargar rol de admin:', error.message);
         }
-        setIsSuperAdmin(false);
+      }
+
+      if ((data as any)?.role === 'super_admin') {
+        setIsSuperAdmin(true);
         return;
       }
 
-      setIsSuperAdmin((data as any)?.role === 'super_admin');
+      // Fallback por función SQL (cuando falta/está desactualizado admin_profiles)
+      const { data: isSa, error: saError } = await withTimeout(
+        supabase.rpc('is_super_admin', { target_user_id: currentUser.id }),
+      );
+
+      if (saError) {
+        console.warn('No se pudo validar super admin por RPC:', saError.message);
+      }
+
+      setIsSuperAdmin(Boolean(isSa));
     } catch (err) {
       console.warn('Timeout/error cargando rol de admin:', err);
       setIsSuperAdmin(false);

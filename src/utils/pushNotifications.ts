@@ -16,6 +16,7 @@ const submittedCacheKey = (email: string, month: string, year: number) =>
   `report-submitted:${email}:${monthKey(month, year)}`;
 
 const normalizeEmail = (email?: string | null) => (email || '').trim().toLowerCase() || null;
+const normalizeMonth = (m: string | null | undefined) => (m || '').trim().toLowerCase();
 
 const getSafeCurrentUserEmail = async (): Promise<string | null> => {
   if (currentUserEmail) return currentUserEmail;
@@ -31,7 +32,7 @@ const getSafeCurrentUserEmail = async (): Promise<string | null> => {
 };
 
 // ---- Public helpers used by Index.tsx ----
-export const setCurrentUser = (email: string) => {
+export const setCurrentUser = (email: string | null) => {
   currentUserEmail = normalizeEmail(email);
 };
 
@@ -41,36 +42,35 @@ export const clearCurrentUser = () => {
 
 export const shouldShowReminderForMonth = async (month: string, year: number): Promise<boolean> => {
   const email = await getSafeCurrentUserEmail();
+  const monthNorm = normalizeMonth(month);
   if (!email) return true;
 
   // Fast local cache to avoid flicker after submit
   try {
-    if (localStorage.getItem(submittedCacheKey(email, month, year)) === '1') return false;
+    if (localStorage.getItem(submittedCacheKey(email, monthNorm, year)) === '1') return false;
   } catch {
     // ignore storage errors
   }
 
-  // If any active subscription for this user is already marked for this month/year,
-  // do not show reminder (and also suppress pushes in edge function).
+  // Prefer user_email/is_active if schema has it. If not available, fail-open.
   const { data, error } = await supabase
     .from('push_subscriptions')
-    .select('last_report_month,last_report_year')
-    .eq('is_active', true)
-    .eq('user_email', email);
+    .select('last_report_month,last_report_year,user_email,is_active')
+    .eq('user_email', email)
+    .eq('is_active', true);
 
   if (error) {
-    // If schema isn't migrated yet, fail-open (show reminder).
     console.warn('shouldShowReminderForMonth fallback (schema/policy):', error.message);
     return true;
   }
 
   const alreadyReported = (data ?? []).some(
-    (row: any) => row?.last_report_month === month && Number(row?.last_report_year) === year,
+    (row: any) => normalizeMonth(row?.last_report_month) === monthNorm && Number(row?.last_report_year) === year,
   );
 
   if (alreadyReported) {
     try {
-      localStorage.setItem(submittedCacheKey(email, month, year), '1');
+      localStorage.setItem(submittedCacheKey(email, monthNorm, year), '1');
     } catch {
       // ignore storage errors
     }
@@ -91,6 +91,11 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
 };
 
 export const getVapidPublicKey = async (): Promise<string | null> => {
+  // Preferred: frontend env
+  const envKey = (import.meta as any)?.env?.VITE_VAPID_PUBLIC_KEY as string | undefined;
+  if (envKey && envKey.trim().length > 0) return envKey.trim();
+
+  // Optional fallback function
   const { data, error } = await supabase.functions.invoke('get-vapid-public-key');
 
   if (error || !data?.publicKey) {
@@ -114,6 +119,15 @@ const urlBase64ToUint8Array = (base64String: string): Uint8Array => {
   return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
 };
 
+async function getOrRegisterServiceWorker(): Promise<ServiceWorkerRegistration> {
+  let registration = await navigator.serviceWorker.getRegistration();
+  if (!registration) {
+    registration = await navigator.serviceWorker.register('/sw.js');
+  }
+  await navigator.serviceWorker.ready;
+  return registration;
+}
+
 export const subscribeToPushNotifications = async (name = 'Usuario'): Promise<boolean> => {
   try {
     const permissionGranted = await requestNotificationPermission();
@@ -127,7 +141,7 @@ export const subscribeToPushNotifications = async (name = 'Usuario'): Promise<bo
       return false;
     }
 
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await getOrRegisterServiceWorker();
 
     let subscription = await registration.pushManager.getSubscription();
 
@@ -152,24 +166,37 @@ export const subscribeToPushNotifications = async (name = 'Usuario'): Promise<bo
 
     const userEmail = await getSafeCurrentUserEmail();
 
-    const payload = {
+    const payload: any = {
       endpoint: subscriptionData.endpoint,
-      p256dh: subscriptionData.keys.p256dh,
-      auth: subscriptionData.keys.auth,
-      name,
-      user_email: userEmail,
+      keys_p256dh: subscriptionData.keys.p256dh,
+      keys_auth: subscriptionData.keys.auth,
+      subscriber_name: name,
+      subscriber_name_norm: name.trim().toLowerCase(),
       is_active: true,
       updated_at: new Date().toISOString(),
     };
+    if (userEmail) payload.user_email = userEmail;
 
     const { error } = await supabase.from('push_subscriptions').upsert(payload, {
       onConflict: 'endpoint',
     });
 
     if (error) {
-      console.error('Failed to save subscription:', error);
-      alert('Error al guardar suscripción');
-      return false;
+      // fallback minimal schema
+      const { error: fallbackError } = await supabase.from('push_subscriptions').upsert(
+        {
+          endpoint: subscriptionData.endpoint,
+          keys_p256dh: subscriptionData.keys.p256dh,
+          keys_auth: subscriptionData.keys.auth,
+        },
+        { onConflict: 'endpoint' },
+      );
+
+      if (fallbackError) {
+        console.error('Failed to save subscription:', fallbackError);
+        alert('Error al guardar suscripción');
+        return false;
+      }
     }
 
     currentSubscription = {
@@ -191,7 +218,7 @@ export const unsubscribeFromPushNotifications = async (): Promise<boolean> => {
   try {
     if (!('serviceWorker' in navigator)) return false;
 
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await getOrRegisterServiceWorker();
     const subscription = await registration.pushManager.getSubscription();
 
     if (subscription) {
@@ -201,11 +228,12 @@ export const unsubscribeFromPushNotifications = async (): Promise<boolean> => {
 
       const { error } = await supabase
         .from('push_subscriptions')
-        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .update({ is_active: false, updated_at: new Date().toISOString() } as any)
         .eq('endpoint', endpoint);
 
       if (error) {
-        console.error('Failed to deactivate subscription in DB:', error);
+        // older schema fallback
+        await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint);
       }
     }
 
@@ -221,7 +249,7 @@ export const getCurrentSubscriptionStatus = async (): Promise<boolean> => {
   try {
     if (!('serviceWorker' in navigator)) return false;
 
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await getOrRegisterServiceWorker();
     const subscription = await registration.pushManager.getSubscription();
 
     if (!subscription) return false;
@@ -230,11 +258,20 @@ export const getCurrentSubscriptionStatus = async (): Promise<boolean> => {
       .from('push_subscriptions')
       .select('is_active')
       .eq('endpoint', subscription.endpoint)
-      .single();
+      .maybeSingle();
 
-    if (error || !data) return false;
+    if (!error && data) {
+      return (data as any).is_active ?? true;
+    }
 
-    return data.is_active;
+    // fallback when `is_active` doesn't exist
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from('push_subscriptions')
+      .select('endpoint')
+      .eq('endpoint', subscription.endpoint)
+      .maybeSingle();
+
+    return !fallbackError && !!fallbackData;
   } catch (error) {
     console.error('Error checking subscription status:', error);
     return false;
@@ -243,7 +280,7 @@ export const getCurrentSubscriptionStatus = async (): Promise<boolean> => {
 
 export const triggerTestNotification = async (): Promise<boolean> => {
   try {
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await getOrRegisterServiceWorker();
     const subscription = await registration.pushManager.getSubscription();
 
     if (!subscription) {
@@ -278,6 +315,7 @@ export const markCurrentSubscriptionAsReported = async (
 ): Promise<boolean> => {
   try {
     const userEmail = await getSafeCurrentUserEmail();
+    const monthNorm = normalizeMonth(month);
 
     // 1) Find all active subscriptions for current user.
     //    If we don't have email, fall back to current endpoint only.
@@ -287,7 +325,6 @@ export const markCurrentSubscriptionAsReported = async (
       const { data, error } = await supabase
         .from('push_subscriptions')
         .select('*')
-        .eq('is_active', true)
         .eq('user_email', userEmail);
 
       if (error) {
@@ -301,7 +338,6 @@ export const markCurrentSubscriptionAsReported = async (
       const { data } = await supabase
         .from('push_subscriptions')
         .select('*')
-        .eq('is_active', true)
         .eq('endpoint', currentSubscription.endpoint)
         .limit(1);
 
@@ -312,7 +348,7 @@ export const markCurrentSubscriptionAsReported = async (
       // Still keep local cache so reminder disappears for this browser.
       if (userEmail) {
         try {
-          localStorage.setItem(submittedCacheKey(userEmail, month, year), '1');
+          localStorage.setItem(submittedCacheKey(userEmail, monthNorm, year), '1');
         } catch {
           // ignore storage errors
         }
@@ -323,39 +359,53 @@ export const markCurrentSubscriptionAsReported = async (
     const now = new Date().toISOString();
 
     for (const sub of subscriptions) {
-      const payload = {
+      const displayName = fullName || sub.subscriber_name || 'Usuario';
+
+      const payload: any = {
         endpoint: sub.endpoint,
-        p256dh: sub.p256dh,
-        auth: sub.auth,
-        name: fullName || sub.name || 'Usuario',
-        user_email: userEmail || sub.user_email || null,
-        is_active: true,
-        last_report_month: month,
+        keys_p256dh: sub.keys_p256dh,
+        keys_auth: sub.keys_auth,
+        subscriber_name: displayName,
+        subscriber_name_norm: displayName.trim().toLowerCase(),
+        last_report_month: monthNorm,
         last_report_year: year,
-        last_report_updated_at: now,
+        is_active: true,
         updated_at: now,
+        last_report_updated_at: now,
       };
+      if (userEmail || sub.user_email) payload.user_email = userEmail || sub.user_email;
 
-      // No UPDATE policy in this project: delete + insert pattern.
-      const { error: delErr } = await supabase
+      const { error: upsertError } = await supabase
         .from('push_subscriptions')
-        .delete()
-        .eq('endpoint', sub.endpoint);
+        .upsert(payload, { onConflict: 'endpoint' });
 
-      if (delErr) {
-        console.error('Failed deleting subscription before insert:', delErr);
-      }
+      if (upsertError) {
+        // fallback to older schema
+        const { error: fallbackError } = await supabase
+          .from('push_subscriptions')
+          .upsert(
+            {
+              endpoint: sub.endpoint,
+              keys_p256dh: sub.keys_p256dh,
+              keys_auth: sub.keys_auth,
+              subscriber_name: displayName,
+              subscriber_name_norm: displayName.trim().toLowerCase(),
+              last_report_month: monthNorm,
+              last_report_year: year,
+            } as any,
+            { onConflict: 'endpoint' },
+          );
 
-      const { error: insErr } = await supabase.from('push_subscriptions').insert(payload);
-      if (insErr) {
-        console.error('Failed to reinsert marked subscription:', insErr);
-        return false;
+        if (fallbackError) {
+          console.error('Failed to reinsert marked subscription:', fallbackError);
+          return false;
+        }
       }
     }
 
     if (userEmail) {
       try {
-        localStorage.setItem(submittedCacheKey(userEmail, month, year), '1');
+        localStorage.setItem(submittedCacheKey(userEmail, monthNorm, year), '1');
       } catch {
         // ignore storage errors
       }

@@ -25,7 +25,7 @@ import {
 import { ImageCropper } from '@/components/ImageCropper';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { isPushNotificationSupported } from '@/utils/pushNotifications';
+import { sendPushNotificationToAll, isPushNotificationSupported } from '@/utils/pushNotifications';
 import { sendBroadcastNotification } from '@/utils/notifications';
 import { ArrowLeft, RefreshCw, FileSpreadsheet, LogOut, Camera, User, Bell, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -273,20 +273,19 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
       const previousMonth = getPreviousMonthName();
       const message = `¡Recuerda enviar tu informe de servicio de ${previousMonth}! - Congregación Arrayanes`;
 
-      const result = await sendBroadcastNotification(message);
-
-      if (result.success) {
-        if (result.mode === 'push') {
-          toast.success(`Notificación enviada a ${result.sent} dispositivo(s).${result.skipped ? ` Omitidos: ${result.skipped}.` : ''}`);
+      if (isPushNotificationSupported()) {
+        const result = await sendPushNotificationToAll(message);
+        if (result?.success) {
+          toast.success(`Notificación enviada a ${result.sent || 0} dispositivos`);
         } else {
-          toast.success('Notificación local enviada (fallback).');
+          const localSuccess = await sendBroadcastNotification(message);
+          if (localSuccess) toast.success('Notificación enviada (solo este dispositivo)');
+          else toast.error('No se pudo enviar la notificación');
         }
       } else {
-        if (!isPushNotificationSupported()) {
-          toast.error('Tu navegador no soporta notificaciones push.');
-        } else {
-          toast.error(result.error ? `No se pudo enviar: ${result.error}` : 'No se pudo enviar la notificación.');
-        }
+        const success = await sendBroadcastNotification(message);
+        if (success) toast.success('Notificación enviada (solo este dispositivo)');
+        else toast.error('Las notificaciones no están habilitadas');
       }
     } catch (error) {
       console.error(error);

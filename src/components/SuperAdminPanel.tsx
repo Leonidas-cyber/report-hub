@@ -242,7 +242,7 @@ export function SuperAdminPanel({ currentUserId }: SuperAdminPanelProps) {
                               if (value !== 'admin' && value !== 'super_admin') return;
                               handleChangeRole(account.user_id, value);
                             }}
-                            disabled={changingRoleFor === account.user_id}
+                            disabled={changingRoleFor === account.user_id || account.user_id === currentUserId}
                           >
                             <SelectTrigger className="w-[160px]">
                               <SelectValue />
