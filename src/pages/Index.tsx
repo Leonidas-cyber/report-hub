@@ -148,11 +148,11 @@ const Index = () => {
       <nav className="bg-card border-b border-border sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <div className="icon-circle-primary flex-shrink-0 overflow-hidden">
+            <div className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full bg-background border border-border/70 shadow-sm flex-shrink-0 overflow-hidden">
               <img
-                src="/favicon-64.png?v=2"
+                src="/favicon-64.png?v=3"
                 alt="Congregación Arrayanes"
-                className="h-6 w-6 sm:h-7 sm:w-7 rounded-full object-cover"
+                className="h-6 w-6 sm:h-7 sm:w-7 object-contain"
               />
             </div>
             <span className="font-bold text-sm sm:text-lg text-foreground truncate">

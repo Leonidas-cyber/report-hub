@@ -39,9 +39,9 @@ const About = () => {
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <img
-              src="/favicon-64.png"
+              src="/favicon-64.png?v=3"
               alt="Icono Informes"
-              className="h-9 w-9 rounded-full"
+              className="h-9 w-9 object-contain"
             />
             <div className="min-w-0">
               <p className="font-semibold leading-tight truncate">Información del sistema</p>
