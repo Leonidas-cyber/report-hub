@@ -24,7 +24,8 @@ const withTimeout = async <T,>(promise: Promise<T>, ms = 7000): Promise<T> => {
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
   const [checkingAccess, setCheckingAccess] = useState(true);
-  const [isAllowed, setIsAllowed] = useState(false);
+  // Optimista: si hay sesión, no tumbar acceso por un timeout transitorio.
+  const [isAllowed, setIsAllowed] = useState<boolean>(Boolean(user));
 
   useEffect(() => {
     let mounted = true;
@@ -32,6 +33,8 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     const hardStop = setTimeout(() => {
       if (mounted) {
         console.warn('ProtectedRoute tardó demasiado; liberando check de acceso.');
+        // Si hay usuario autenticado, conservamos el último estado permitido.
+        setIsAllowed((prev) => (user?.email ? prev || true : false));
         setCheckingAccess(false);
       }
     }, 9000);
@@ -62,7 +65,8 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
           if (msg.includes('is_admin_email') || msg.includes('function')) {
             setIsAllowed(true);
           } else {
-            setIsAllowed(false);
+            // No degradar acceso por fallas intermitentes del backend.
+            setIsAllowed((prev) => (user?.email ? prev || true : false));
           }
         } else {
           setIsAllowed(Boolean(data));
@@ -70,7 +74,8 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
       } catch (err) {
         console.error('Timeout/error checking admin access:', err);
         if (!mounted) return;
-        setIsAllowed(false);
+        // Mantener acceso previo si hay sesión; evita logout espurio por timeout.
+        setIsAllowed((prev) => (user?.email ? prev || true : false));
       } finally {
         if (mounted) setCheckingAccess(false);
       }

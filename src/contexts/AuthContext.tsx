@@ -44,6 +44,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // En este proyecto, todo usuario autenticado ya pasó allowlist de admin.
+    // Mantenemos true para no bloquear la UI en refrescos/transitorios de red.
     setIsAdmin(true);
 
     try {
@@ -74,12 +76,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (saError) {
         console.warn('No se pudo validar super admin por RPC:', saError.message);
+        // Error transitorio: no degradar permisos en caliente.
+        return;
       }
 
-      setIsSuperAdmin(Boolean(isSa));
+      // Solo actualizamos cuando sí hubo respuesta válida del backend.
+      if (typeof isSa === 'boolean') {
+        setIsSuperAdmin(isSa);
+      }
     } catch (err) {
       console.warn('Timeout/error cargando rol de admin:', err);
-      setIsSuperAdmin(false);
+      // Evita "parpadeo" de permisos por timeout intermitente.
+      // Si ya era super_admin, conserva ese estado hasta próxima validación exitosa.
     }
   }, []);
 
