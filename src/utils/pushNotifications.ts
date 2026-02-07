@@ -1,267 +1,380 @@
 import { supabase } from '@/integrations/supabase/client';
-import { getPreviousMonth, getPreviousMonthYear } from '@/types/report';
 
-// VAPID public key - set this in your .env file
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
-
-// Convert VAPID key to Uint8Array for subscription
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding)
-    .replace(/-/g, '+')
-    .replace(/_/g, '/');
-
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
+interface PushSubscriptionData {
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
 }
 
-function normalizeName(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
-}
+let currentSubscription: PushSubscriptionData | null = null;
+let currentUserEmail: string | null = null;
 
-export async function subscribeToPushNotifications(): Promise<boolean> {
-  console.log('=== Iniciando suscripción push ===');
+const monthKey = (month: string, year: number) => `${year}-${month.toLowerCase()}`;
+const submittedCacheKey = (email: string, month: string, year: number) =>
+  `report-submitted:${email}:${monthKey(month, year)}`;
 
-  if (!('serviceWorker' in navigator)) {
-    console.error('❌ Service Worker no soportado');
-    return false;
-  }
+const normalizeEmail = (email?: string | null) => (email || '').trim().toLowerCase() || null;
 
-  if (!('PushManager' in window)) {
-    console.error('❌ PushManager no soportado');
-    return false;
-  }
-
-  console.log('VAPID_PUBLIC_KEY:', VAPID_PUBLIC_KEY ? `${VAPID_PUBLIC_KEY.substring(0, 20)}...` : 'NO CONFIGURADA');
-
-  if (!VAPID_PUBLIC_KEY) {
-    console.error('❌ VAPID public key no configurada. Agrega VITE_VAPID_PUBLIC_KEY a tus variables de entorno.');
-    return false;
-  }
+const getSafeCurrentUserEmail = async (): Promise<string | null> => {
+  if (currentUserEmail) return currentUserEmail;
 
   try {
-    // Register service worker
-    console.log('📝 Registrando Service Worker...');
-    const registration = await navigator.serviceWorker.register('/sw.js');
-    console.log('✅ Service Worker registrado:', registration.scope);
+    const { data } = await supabase.auth.getUser();
+    const email = normalizeEmail(data?.user?.email ?? null);
+    if (email) currentUserEmail = email;
+    return email;
+  } catch {
+    return null;
+  }
+};
 
-    await navigator.serviceWorker.ready;
-    console.log('✅ Service Worker listo');
+// ---- Public helpers used by Index.tsx ----
+export const setCurrentUser = (email: string) => {
+  currentUserEmail = normalizeEmail(email);
+};
 
-    // Request notification permission only when needed
-    if (Notification.permission === 'default') {
-      console.log('🔔 Solicitando permiso de notificaciones...');
-      const permission = await Notification.requestPermission();
-      console.log('Permiso:', permission);
-    }
+export const clearCurrentUser = () => {
+  currentUserEmail = null;
+};
 
-    if (Notification.permission !== 'granted') {
-      console.error('❌ Permiso de notificaciones denegado');
-      return false;
-    }
+export const shouldShowReminderForMonth = async (month: string, year: number): Promise<boolean> => {
+  const email = await getSafeCurrentUserEmail();
+  if (!email) return true;
 
-    // Reutilizar suscripción existente si ya existe
-    let subscription = await registration.pushManager.getSubscription();
+  // Fast local cache to avoid flicker after submit
+  try {
+    if (localStorage.getItem(submittedCacheKey(email, month, year)) === '1') return false;
+  } catch {
+    // ignore storage errors
+  }
 
-    if (!subscription) {
-      console.log('📲 Creando nueva suscripción push...');
-      const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
-      subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey,
-      });
-      console.log('✅ Suscripción creada');
-    } else {
-      console.log('ℹ️ Ya existe suscripción local, reutilizando...');
-    }
+  // If any active subscription for this user is already marked for this month/year,
+  // do not show reminder (and also suppress pushes in edge function).
+  const { data, error } = await supabase
+    .from('push_subscriptions')
+    .select('last_report_month,last_report_year')
+    .eq('is_active', true)
+    .eq('user_email', email);
 
-    // Extract subscription data
-    const subscriptionJson = subscription.toJSON();
-    const endpoint = subscriptionJson.endpoint;
-    const keys = subscriptionJson.keys;
-
-    if (!endpoint || !keys?.p256dh || !keys?.auth) {
-      console.error('❌ Suscripción inválida: faltan endpoint/keys');
-      return false;
-    }
-
-    console.log('📤 Guardando en base de datos...');
-    console.log('Endpoint:', endpoint.substring(0, 50) + '...');
-
-    // Save subscription to database
-    const { error } = await supabase
-      .from('push_subscriptions')
-      .insert({
-        endpoint,
-        keys_p256dh: keys.p256dh,
-        keys_auth: keys.auth,
-      });
-
-    if (error) {
-      // Si ya existe, consideramos éxito
-      if (error.code === '23505') {
-        console.log('ℹ️ La suscripción ya existía en la base de datos');
-      } else {
-        console.error('❌ Error guardando suscripción:', error);
-        return false;
-      }
-    }
-
-    console.log('✅ Suscripción push guardada exitosamente');
+  if (error) {
+    // If schema isn't migrated yet, fail-open (show reminder).
+    console.warn('shouldShowReminderForMonth fallback (schema/policy):', error.message);
     return true;
-  } catch (error) {
-    console.error('❌ Error en suscripción push:', error);
+  }
+
+  const alreadyReported = (data ?? []).some(
+    (row: any) => row?.last_report_month === month && Number(row?.last_report_year) === year,
+  );
+
+  if (alreadyReported) {
+    try {
+      localStorage.setItem(submittedCacheKey(email, month, year), '1');
+    } catch {
+      // ignore storage errors
+    }
     return false;
   }
-}
 
-export async function markCurrentSubscriptionAsReported(params: {
-  fullName: string;
-  month: string;
-  year: number;
-}): Promise<boolean> {
+  return true;
+};
+
+export const requestNotificationPermission = async (): Promise<boolean> => {
+  if (!('Notification' in window)) {
+    console.log('This browser does not support notifications');
+    return false;
+  }
+
+  const permission = await Notification.requestPermission();
+  return permission === 'granted';
+};
+
+export const getVapidPublicKey = async (): Promise<string | null> => {
+  const { data, error } = await supabase.functions.invoke('get-vapid-public-key');
+
+  if (error || !data?.publicKey) {
+    console.error('Failed to get VAPID public key:', error);
+    return null;
+  }
+
+  return data.publicKey;
+};
+
+const urlBase64ToUint8Array = (base64String: string): Uint8Array => {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
+};
+
+export const subscribeToPushNotifications = async (name: string): Promise<boolean> => {
   try {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    const permissionGranted = await requestNotificationPermission();
+    if (!permissionGranted) {
+      alert('Permiso de notificaciones denegado');
+      return false;
+    }
+
+    if (!('serviceWorker' in navigator)) {
+      alert('Tu navegador no soporta Service Workers');
       return false;
     }
 
     const registration = await navigator.serviceWorker.ready;
-    const subscription = await registration.pushManager.getSubscription();
+
+    let subscription = await registration.pushManager.getSubscription();
+
     if (!subscription) {
+      const publicKey = await getVapidPublicKey();
+      if (!publicKey) {
+        alert('No se pudo obtener la clave de notificaciones');
+        return false;
+      }
+
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+    }
+
+    const subscriptionData = subscription.toJSON();
+    if (!subscriptionData.endpoint || !subscriptionData.keys?.p256dh || !subscriptionData.keys?.auth) {
+      alert('Datos de suscripción incompletos');
       return false;
     }
 
-    const sub = subscription.toJSON();
-    const endpoint = sub.endpoint;
-    const keys = sub.keys;
+    const userEmail = await getSafeCurrentUserEmail();
 
-    if (!endpoint || !keys?.p256dh || !keys?.auth) {
-      return false;
-    }
+    const payload = {
+      endpoint: subscriptionData.endpoint,
+      p256dh: subscriptionData.keys.p256dh,
+      auth: subscriptionData.keys.auth,
+      name,
+      user_email: userEmail,
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    };
 
-    const cleanName = params.fullName.trim();
-    const normalizedName = normalizeName(cleanName);
-
-    // Reemplazar por endpoint (delete + insert) para evitar dependencia de policy UPDATE
-    await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint);
-
-    const { error } = await supabase
-      .from('push_subscriptions')
-      .insert({
-        endpoint,
-        keys_p256dh: keys.p256dh,
-        keys_auth: keys.auth,
-        subscriber_name: cleanName,
-        subscriber_name_norm: normalizedName,
-        last_report_month: params.month,
-        last_report_year: params.year,
-      } as any);
+    const { error } = await supabase.from('push_subscriptions').upsert(payload, {
+      onConflict: 'endpoint',
+    });
 
     if (error) {
-      console.error('Error marcando suscripción como reporte enviado:', error);
+      console.error('Failed to save subscription:', error);
+      alert('Error al guardar suscripción');
       return false;
     }
+
+    currentSubscription = {
+      endpoint: subscriptionData.endpoint,
+      keys: {
+        p256dh: subscriptionData.keys.p256dh,
+        auth: subscriptionData.keys.auth,
+      },
+    };
 
     return true;
   } catch (error) {
-    console.error('Error en markCurrentSubscriptionAsReported:', error);
+    console.error('Error subscribing to push notifications:', error);
     return false;
   }
-}
+};
 
-export async function unsubscribeFromPushNotifications(): Promise<boolean> {
+export const unsubscribeFromPushNotifications = async (): Promise<boolean> => {
   try {
+    if (!('serviceWorker' in navigator)) return false;
+
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
 
     if (subscription) {
-      // Remove from database
-      await supabase
-        .from('push_subscriptions')
-        .delete()
-        .eq('endpoint', subscription.endpoint);
+      const endpoint = subscription.endpoint;
 
-      // Unsubscribe locally
       await subscription.unsubscribe();
+
+      const { error } = await supabase
+        .from('push_subscriptions')
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq('endpoint', endpoint);
+
+      if (error) {
+        console.error('Failed to deactivate subscription in DB:', error);
+      }
     }
 
+    currentSubscription = null;
     return true;
   } catch (error) {
-    console.error('Error unsubscribing:', error);
+    console.error('Error unsubscribing from push notifications:', error);
     return false;
   }
-}
+};
 
-export async function sendPushNotificationToAll(message?: string): Promise<{ success: boolean; sent?: number; failed?: number; total?: number; skipped?: number }> {
+export const getCurrentSubscriptionStatus = async (): Promise<boolean> => {
   try {
-    // 1. Verificar si hay una sesión activa antes de intentar enviar
-    const { data: { session } } = await supabase.auth.getSession();
+    if (!('serviceWorker' in navigator)) return false;
 
-    if (!session) {
-      console.error('ERROR: No hay sesión activa. Debes iniciar sesión para enviar notificaciones.');
-      return { success: false };
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+
+    if (!subscription) return false;
+
+    const { data, error } = await supabase
+      .from('push_subscriptions')
+      .select('is_active')
+      .eq('endpoint', subscription.endpoint)
+      .single();
+
+    if (error || !data) return false;
+
+    return data.is_active;
+  } catch (error) {
+    console.error('Error checking subscription status:', error);
+    return false;
+  }
+};
+
+export const triggerTestNotification = async (): Promise<boolean> => {
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+
+    if (!subscription) {
+      alert('No hay suscripción activa');
+      return false;
     }
 
-    console.log('Enviando notificación como usuario:', session.user.email);
-
-    // El recordatorio siempre corresponde al reporte del mes anterior
-    const targetMonth = getPreviousMonth();
-    const targetYear = getPreviousMonthYear();
-    const notificationMessage = message || `¡Recuerda enviar tu informe de servicio de ${targetMonth.toLowerCase()}! - Congregación Arrayanes`;
-
-    // 2. Invocar la función
-    const { data, error } = await supabase.functions.invoke('send-push-notification', {
+    const { error } = await supabase.functions.invoke('send-push-notification', {
       body: {
-        message: notificationMessage,
-        targetMonth,
-        targetYear,
+        testMode: true,
+        endpoint: subscription.endpoint,
       },
     });
 
     if (error) {
-      console.error('Error sending push notifications:', error);
-      return { success: false };
+      console.error('Failed to send test notification:', error);
+      alert('Error al enviar notificación de prueba');
+      return false;
     }
 
-    console.log('Respuesta del servidor:', data);
-
-    return {
-      success: true,
-      sent: data.sent,
-      failed: data.failed,
-      total: data.total,
-      skipped: data.skipped,
-    };
+    return true;
   } catch (error) {
-    console.error('Error calling push notification function:', error);
-    return { success: false };
+    console.error('Error triggering test notification:', error);
+    return false;
   }
-}
+};
 
-export function isPushNotificationSupported(): boolean {
-  return 'serviceWorker' in navigator && 'PushManager' in window && !!VAPID_PUBLIC_KEY;
-}
-
-export async function getPushSubscriptionStatus(): Promise<'subscribed' | 'not-subscribed' | 'unsupported'> {
-  if (!isPushNotificationSupported()) {
-    return 'unsupported';
-  }
-
+export const markCurrentSubscriptionAsReported = async (
+  month: string,
+  year: number,
+  fullName?: string,
+): Promise<boolean> => {
   try {
-    const registration = await navigator.serviceWorker.ready;
-    const subscription = await registration.pushManager.getSubscription();
-    return subscription ? 'subscribed' : 'not-subscribed';
-  } catch {
-    return 'unsupported';
+    const userEmail = await getSafeCurrentUserEmail();
+
+    // 1) Find all active subscriptions for current user.
+    //    If we don't have email, fall back to current endpoint only.
+    let subscriptions: any[] = [];
+
+    if (userEmail) {
+      const { data, error } = await supabase
+        .from('push_subscriptions')
+        .select('*')
+        .eq('is_active', true)
+        .eq('user_email', userEmail);
+
+      if (error) {
+        console.warn('Could not read subscriptions by user_email:', error.message);
+      }
+
+      subscriptions = data ?? [];
+    }
+
+    if (!subscriptions.length && currentSubscription?.endpoint) {
+      const { data } = await supabase
+        .from('push_subscriptions')
+        .select('*')
+        .eq('is_active', true)
+        .eq('endpoint', currentSubscription.endpoint)
+        .limit(1);
+
+      subscriptions = data ?? [];
+    }
+
+    if (!subscriptions.length) {
+      // Still keep local cache so reminder disappears for this browser.
+      if (userEmail) {
+        try {
+          localStorage.setItem(submittedCacheKey(userEmail, month, year), '1');
+        } catch {
+          // ignore storage errors
+        }
+      }
+      return true;
+    }
+
+    const now = new Date().toISOString();
+
+    for (const sub of subscriptions) {
+      const payload = {
+        endpoint: sub.endpoint,
+        p256dh: sub.p256dh,
+        auth: sub.auth,
+        name: fullName || sub.name || 'Usuario',
+        user_email: userEmail || sub.user_email || null,
+        is_active: true,
+        last_report_month: month,
+        last_report_year: year,
+        last_report_updated_at: now,
+        updated_at: now,
+      };
+
+      // No UPDATE policy in this project: delete + insert pattern.
+      const { error: delErr } = await supabase
+        .from('push_subscriptions')
+        .delete()
+        .eq('endpoint', sub.endpoint);
+
+      if (delErr) {
+        console.error('Failed deleting subscription before insert:', delErr);
+      }
+
+      const { error: insErr } = await supabase.from('push_subscriptions').insert(payload);
+      if (insErr) {
+        console.error('Failed to reinsert marked subscription:', insErr);
+        return false;
+      }
+    }
+
+    if (userEmail) {
+      try {
+        localStorage.setItem(submittedCacheKey(userEmail, month, year), '1');
+      } catch {
+        // ignore storage errors
+      }
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error marking subscription as reported:', error);
+    return false;
   }
-}
+};
+
+export const sendReportReminder = async (): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase.functions.invoke('send-push-notification');
+
+    if (error) {
+      console.error('Failed to send reminder notifications:', error);
+      return false;
+    }
+
+    console.log('Reminder notifications sent:', data);
+    return true;
+  } catch (error) {
+    console.error('Error sending reminder notifications:', error);
+    return false;
+  }
+};
