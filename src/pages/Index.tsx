@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useSuperintendents } from '@/hooks/useSuperintendents';
@@ -24,18 +25,32 @@ import {
   shouldShowReminderForMonth,
   markCurrentSubscriptionAsReported,
 } from '@/utils/pushNotifications';
-import { 
-  ROLES, 
+import {
+  ROLES,
   getPreviousMonth,
   getPreviousMonthYear,
 } from '@/types/report';
 import type { RoleType } from '@/types/report';
-import { AlertTriangle, Send, Settings } from 'lucide-react';
+import { AlertTriangle, Send, Settings, Accessibility, CheckCircle2 } from 'lucide-react';
+
+const EASY_MODE_KEY = 'report_hub_easy_mode';
+
+type ReportDraft = {
+  fullName: string;
+  role: RoleType | '';
+  hours: string;
+  bibleCourses: string;
+  participated: string;
+  superintendentId: string;
+  notes: string;
+};
 
 const Index = () => {
   // Reports are always for the PREVIOUS month
   const reportMonth = getPreviousMonth();
   const reportYear = getPreviousMonthYear();
+  const draftKey = `report_draft_${reportMonth}_${reportYear}`;
+
   const { superintendents, loading: loadingSuperintendents } = useSuperintendents();
 
   const [fullName, setFullName] = useState('');
@@ -48,8 +63,31 @@ const Index = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showReminder, setShowReminder] = useState(true);
+  const [easyMode, setEasyMode] = useState<boolean>(() => localStorage.getItem(EASY_MODE_KEY) === '1');
+  const [draftReady, setDraftReady] = useState(false);
 
   const showHoursField = role === 'precursor_auxiliar' || role === 'precursor_regular';
+
+  const requiredTotal = 4;
+  const completedRequired = useMemo(() => {
+    let completed = 0;
+    if (fullName.trim()) completed += 1;
+    if (role) completed += 1;
+    if (participated !== '') completed += 1;
+    if (superintendentId) completed += 1;
+    return completed;
+  }, [fullName, role, participated, superintendentId]);
+
+  const formProgress = Math.round((completedRequired / requiredTotal) * 100);
+
+  const step1Done = Boolean(fullName.trim() && role);
+  const step2Done = Boolean(participated !== '' && superintendentId);
+  const step3Ready = step1Done && step2Done;
+
+  useEffect(() => {
+    document.body.classList.toggle('easy-mode', easyMode);
+    localStorage.setItem(EASY_MODE_KEY, easyMode ? '1' : '0');
+  }, [easyMode]);
 
   useEffect(() => {
     let mounted = true;
@@ -85,24 +123,85 @@ const Index = () => {
       clearCurrentUser();
     };
   }, [reportMonth, reportYear]);
+
+  // Cargar borrador guardado del mes actual
+  useEffect(() => {
+    const raw = localStorage.getItem(draftKey);
+
+    if (!raw) {
+      setDraftReady(true);
+      return;
+    }
+
+    try {
+      const draft = JSON.parse(raw) as Partial<ReportDraft>;
+      if (typeof draft.fullName === 'string') setFullName(draft.fullName);
+      if (typeof draft.role === 'string') {
+        const isValidRole = ROLES.some((r) => r.value === draft.role);
+        setRole(isValidRole ? (draft.role as RoleType) : '');
+      }
+      if (typeof draft.hours === 'string') setHours(draft.hours);
+      if (typeof draft.bibleCourses === 'string') setBibleCourses(draft.bibleCourses);
+      if (typeof draft.participated === 'string') setParticipated(draft.participated);
+      if (typeof draft.superintendentId === 'string') setSuperintendentId(draft.superintendentId);
+      if (typeof draft.notes === 'string') setNotes(draft.notes);
+    } catch (error) {
+      console.warn('No se pudo cargar borrador local:', error);
+      localStorage.removeItem(draftKey);
+    } finally {
+      setDraftReady(true);
+    }
+  }, [draftKey]);
+
+  // Guardado automático del borrador
+  useEffect(() => {
+    if (!draftReady) return;
+
+    const hasAnyValue = [
+      fullName,
+      role,
+      hours,
+      bibleCourses,
+      participated,
+      superintendentId,
+      notes,
+    ].some((v) => `${v ?? ''}`.trim() !== '');
+
+    if (!hasAnyValue) {
+      localStorage.removeItem(draftKey);
+      return;
+    }
+
+    const draft: ReportDraft = {
+      fullName,
+      role,
+      hours,
+      bibleCourses,
+      participated,
+      superintendentId,
+      notes,
+    };
+
+    localStorage.setItem(draftKey, JSON.stringify(draft));
+  }, [
+    draftReady,
+    draftKey,
+    fullName,
+    role,
+    hours,
+    bibleCourses,
+    participated,
+    superintendentId,
+    notes,
+  ]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!fullName.trim()) {
-      return;
-    }
-
-    if (!role) {
-      return;
-    }
-
-    if (participated === '') {
-      return;
-    }
-
-    if (!superintendentId) {
-      return;
-    }
+    if (!fullName.trim()) return;
+    if (!role) return;
+    if (participated === '') return;
+    if (!superintendentId) return;
 
     setIsSubmitting(true);
 
@@ -123,11 +222,12 @@ const Index = () => {
 
       await markCurrentSubscriptionAsReported(reportMonth, reportYear, fullName.trim());
       localStorage.setItem(`report_submitted_${reportMonth}_${reportYear}`, '1');
+      localStorage.removeItem(draftKey);
       setShowReminder(false);
 
       // Show success modal
       setShowSuccess(true);
-      
+
       // Reset form
       setFullName('');
       setRole('');
@@ -142,6 +242,9 @@ const Index = () => {
       setIsSubmitting(false);
     }
   };
+
+  const labelClass = easyMode ? 'text-lg' : 'text-base';
+  const inputClass = easyMode ? 'input-field text-xl py-7' : 'input-field text-lg py-6';
 
   return (
     <div className="min-h-screen bg-background">
@@ -179,27 +282,52 @@ const Index = () => {
       </nav>
 
       <div className="max-w-2xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
+        <div className="mb-4 rounded-xl border border-border bg-card p-3 sm:p-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="font-semibold flex items-center gap-2">
+              <Accessibility className="h-4 w-4 text-primary" />
+              Modo fácil
+            </p>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              Aumenta el tamaño de texto y controles para una lectura más cómoda.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant={easyMode ? 'default' : 'outline'}
+            onClick={() => setEasyMode((prev) => !prev)}
+            className={easyMode ? 'min-w-[110px]' : 'min-w-[110px]'}
+          >
+            {easyMode ? 'Activado' : 'Activar'}
+          </Button>
+        </div>
+
         <div className="mb-6 sm:mb-8">
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Informe de Servicio</h1>
-          <p className="text-sm sm:text-base text-muted-foreground mt-1">
+          <h1 className={easyMode ? 'text-2xl sm:text-3xl font-bold text-foreground' : 'text-xl sm:text-2xl font-bold text-foreground'}>
+            Informe de Servicio
+          </h1>
+          <p className={easyMode ? 'text-base sm:text-lg text-muted-foreground mt-1' : 'text-sm sm:text-base text-muted-foreground mt-1'}>
             Por favor, complete el siguiente formulario con los detalles de su servicio del mes.
           </p>
         </div>
 
         <Card className="animate-slide-up">
           <CardHeader className="text-center pb-2">
-            <CardTitle className="text-xl text-primary">
+            <CardTitle className={easyMode ? 'text-2xl text-primary' : 'text-xl text-primary'}>
               Informe Mensual de Servicio
             </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              El informe corresponde al mes de: <strong className="text-primary text-lg">{reportMonth} {reportYear}</strong>
+            <p className={easyMode ? 'text-base text-muted-foreground' : 'text-sm text-muted-foreground'}>
+              El informe corresponde al mes de:{' '}
+              <strong className={easyMode ? 'text-primary text-xl' : 'text-primary text-lg'}>
+                {reportMonth} {reportYear}
+              </strong>
             </p>
           </CardHeader>
 
           <CardContent>
             {/* Recordatorio (solo si aún no ha enviado) */}
             {showReminder && (
-              <div className="alert-reminder flex items-center gap-3 mb-6">
+              <div className="alert-reminder flex items-center gap-3 mb-4">
                 <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0" />
                 <div>
                   <strong>Recordatorio:</strong> Aún no has enviado tu informe correspondiente a {reportMonth}.
@@ -207,34 +335,66 @@ const Index = () => {
               </div>
             )}
 
+            <div className="mb-5 rounded-xl border border-border/70 bg-muted/30 p-4">
+              <div className="flex items-center justify-between gap-4">
+                <p className="font-medium">Progreso del formulario</p>
+                <p className="text-sm font-semibold text-primary">{formProgress}%</p>
+              </div>
+              <Progress value={formProgress} className="mt-2 h-3" />
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                <div className={`rounded-md border px-3 py-2 text-sm ${step1Done ? 'border-success/50 bg-success/10' : 'border-border bg-background/60'}`}>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className={`h-4 w-4 ${step1Done ? 'text-success' : 'text-muted-foreground'}`} />
+                    <span className="font-medium">Paso 1</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">Datos básicos</p>
+                </div>
+                <div className={`rounded-md border px-3 py-2 text-sm ${step2Done ? 'border-success/50 bg-success/10' : 'border-border bg-background/60'}`}>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className={`h-4 w-4 ${step2Done ? 'text-success' : 'text-muted-foreground'}`} />
+                    <span className="font-medium">Paso 2</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">Participación y capitán</p>
+                </div>
+                <div className={`rounded-md border px-3 py-2 text-sm ${step3Ready ? 'border-success/50 bg-success/10' : 'border-border bg-background/60'}`}>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className={`h-4 w-4 ${step3Ready ? 'text-success' : 'text-muted-foreground'}`} />
+                    <span className="font-medium">Paso 3</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">Revisar y enviar</p>
+                </div>
+              </div>
+            </div>
+
             <p className="text-center text-sm text-muted-foreground mb-6">
-              Complete todos los campos requeridos
+              Guardado automático activado. Si cierras la página, tu borrador se conserva.
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Nombre Completo */}
               <div className="space-y-2">
-                <Label htmlFor="fullName" className="text-base">Nombre Completo:</Label>
+                <Label htmlFor="fullName" className={labelClass}>Nombre Completo:</Label>
                 <Input
                   id="fullName"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="Ingrese su nombre completo"
-                  className="input-field text-lg py-6"
+                  className={inputClass}
                   required
                 />
               </div>
 
               {/* Rol */}
               <div className="space-y-2">
-                <Label className="text-base">Rol:</Label>
+                <Label className={labelClass}>Rol:</Label>
                 <Select value={role} onValueChange={(v) => setRole(v as RoleType)} required>
-                  <SelectTrigger className="input-field text-lg py-6">
+                  <SelectTrigger className={inputClass}>
                     <SelectValue placeholder="Seleccione una opción" />
                   </SelectTrigger>
                   <SelectContent>
                     {ROLES.map((r) => (
-                      <SelectItem key={r.value} value={r.value} className="text-lg py-3">
+                      <SelectItem key={r.value} value={r.value} className={easyMode ? 'text-xl py-3' : 'text-lg py-3'}>
                         {r.label}
                       </SelectItem>
                     ))}
@@ -246,7 +406,7 @@ const Index = () => {
               {showHoursField && (
                 <>
                   <div className="space-y-2 animate-fade-in">
-                    <Label htmlFor="hours" className="text-base">Número de Horas:</Label>
+                    <Label htmlFor="hours" className={labelClass}>Número de Horas:</Label>
                     <Input
                       id="hours"
                       type="number"
@@ -254,12 +414,12 @@ const Index = () => {
                       value={hours}
                       onChange={(e) => setHours(e.target.value)}
                       placeholder="Ingrese el número de horas"
-                      className="input-field text-lg py-6"
+                      className={inputClass}
                     />
                   </div>
 
                   <div className="space-y-2 animate-fade-in">
-                    <Label htmlFor="bibleCourses" className="text-base">Número de Cursos Bíblicos:</Label>
+                    <Label htmlFor="bibleCourses" className={labelClass}>Número de Cursos Bíblicos:</Label>
                     <Input
                       id="bibleCourses"
                       type="number"
@@ -267,7 +427,7 @@ const Index = () => {
                       value={bibleCourses}
                       onChange={(e) => setBibleCourses(e.target.value)}
                       placeholder="Ingrese el número de cursos bíblicos"
-                      className="input-field text-lg py-6"
+                      className={inputClass}
                     />
                   </div>
                 </>
@@ -275,7 +435,7 @@ const Index = () => {
 
               {/* Participación */}
               <div className="space-y-3">
-                <Label className="text-base">Participó en alguna faceta de la predicación durante el mes:</Label>
+                <Label className={labelClass}>Participó en alguna faceta de la predicación durante el mes:</Label>
                 <RadioGroup value={participated} onValueChange={setParticipated}>
                   <Label
                     htmlFor="participated-yes"
@@ -284,7 +444,7 @@ const Index = () => {
                     <div className="flex items-start gap-3">
                       <RadioGroupItem value="yes" id="participated-yes" className="mt-1" />
                       <div>
-                        <div className="font-medium text-success text-lg leading-tight">
+                        <div className={easyMode ? 'font-medium text-success text-xl leading-tight' : 'font-medium text-success text-lg leading-tight'}>
                           Sí, participé
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">
@@ -301,7 +461,7 @@ const Index = () => {
                     <div className="flex items-start gap-3">
                       <RadioGroupItem value="no" id="participated-no" className="mt-1" />
                       <div>
-                        <div className="font-medium text-destructive text-lg leading-tight">
+                        <div className={easyMode ? 'font-medium text-destructive text-xl leading-tight' : 'font-medium text-destructive text-lg leading-tight'}>
                           No participé
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">
@@ -315,9 +475,9 @@ const Index = () => {
 
               {/* Capitán de servicio */}
               <div className="space-y-2">
-                <Label className="text-base">Capitán de Servicio:</Label>
+                <Label className={labelClass}>Capitán de Servicio:</Label>
                 <Select value={superintendentId} onValueChange={setSuperintendentId} disabled={loadingSuperintendents} required>
-                  <SelectTrigger className="input-field text-lg py-6">
+                  <SelectTrigger className={inputClass}>
                     <SelectValue placeholder="Seleccione el capitán correspondiente" />
                   </SelectTrigger>
                   <SelectContent>
@@ -327,7 +487,7 @@ const Index = () => {
                       </div>
                     ) : (
                       superintendents.map((s) => (
-                        <SelectItem key={s.id} value={s.id} className="text-lg py-3">
+                        <SelectItem key={s.id} value={s.id} className={easyMode ? 'text-xl py-3' : 'text-lg py-3'}>
                           {s.name} Grupo {s.group_number}
                         </SelectItem>
                       ))
@@ -338,13 +498,13 @@ const Index = () => {
 
               {/* Notas */}
               <div className="space-y-2">
-                <Label htmlFor="notes" className="text-base">Notas:</Label>
+                <Label htmlFor="notes" className={labelClass}>Notas:</Label>
                 <Textarea
                   id="notes"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Agregue cualquier nota adicional (opcional)"
-                  className="input-field min-h-[100px] resize-none text-lg"
+                  className={easyMode ? 'input-field min-h-[120px] resize-none text-xl' : 'input-field min-h-[100px] resize-none text-lg'}
                 />
               </div>
 
@@ -354,7 +514,7 @@ const Index = () => {
                   type="submit"
                   disabled={isSubmitting}
                   size="lg"
-                  className="px-10 py-6 text-lg"
+                  className={easyMode ? 'px-10 py-7 text-xl' : 'px-10 py-6 text-lg'}
                 >
                   {isSubmitting ? (
                     <>
@@ -375,9 +535,9 @@ const Index = () => {
       </div>
 
       {/* Success Modal */}
-      <SuccessModal 
-        open={showSuccess} 
-        onClose={() => setShowSuccess(false)} 
+      <SuccessModal
+        open={showSuccess}
+        onClose={() => setShowSuccess(false)}
         month={reportMonth}
       />
 

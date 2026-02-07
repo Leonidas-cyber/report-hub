@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { exportToExcel } from '@/utils/exportExcel';
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import { ReportsTable } from '@/components/ReportsTable';
 import { ReportsGrid } from '@/components/ReportsGrid';
 import { AdminHeader } from '@/components/AdminHeader';
@@ -11,7 +12,11 @@ import { SuperAdminPanel } from '@/components/SuperAdminPanel';
 import { useServiceReports } from '@/hooks/useServiceReports';
 import { useSuperintendents } from '@/hooks/useSuperintendents';
 import { useAuth } from '@/contexts/AuthContext';
-import { Table2, LayoutGrid, ShieldCheck } from 'lucide-react';
+import { getPreviousMonth, getPreviousMonthYear } from '@/types/report';
+import { Table2, LayoutGrid, ShieldCheck, Users, UserCheck, UserX, Accessibility } from 'lucide-react';
+
+const TOTAL_EXPECTED_REPORTERS = 96;
+const EASY_MODE_KEY = 'report_hub_easy_mode';
 
 const Admin = () => {
   const { user, isSuperAdmin } = useAuth();
@@ -19,6 +24,15 @@ const Admin = () => {
   const { superintendents } = useSuperintendents();
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [easyMode, setEasyMode] = useState<boolean>(() => localStorage.getItem(EASY_MODE_KEY) === '1');
+
+  const targetMonth = getPreviousMonth();
+  const targetYear = getPreviousMonthYear();
+
+  useEffect(() => {
+    document.body.classList.toggle('easy-mode', easyMode);
+    localStorage.setItem(EASY_MODE_KEY, easyMode ? '1' : '0');
+  }, [easyMode]);
 
   const sortedSuperintendents = useMemo(() => {
     return [...superintendents].sort((a, b) => {
@@ -27,6 +41,24 @@ const Admin = () => {
     });
   }, [superintendents]);
 
+  const reportsForTargetMonth = useMemo(
+    () => reports.filter((r) => r.month === targetMonth && r.year === targetYear),
+    [reports, targetMonth, targetYear]
+  );
+
+  const uniqueSubmittersCount = useMemo(() => {
+    const unique = new Set<string>();
+    for (const report of reportsForTargetMonth) {
+      const normalized = report.fullName.trim().toLocaleLowerCase('es-MX');
+      if (normalized) unique.add(normalized);
+    }
+    return unique.size;
+  }, [reportsForTargetMonth]);
+
+  const missingCount = Math.max(TOTAL_EXPECTED_REPORTERS - uniqueSubmittersCount, 0);
+  const progressPercent = Math.round(
+    (Math.min(uniqueSubmittersCount, TOTAL_EXPECTED_REPORTERS) / TOTAL_EXPECTED_REPORTERS) * 100
+  );
 
   const handleRefresh = async () => {
     if (isRefreshing) return;
@@ -94,6 +126,66 @@ const Admin = () => {
       />
 
       <main className="container mx-auto px-4 py-8 space-y-6">
+        <Card className="shadow-card">
+          <CardHeader>
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div>
+                <CardTitle className="text-2xl">Seguimiento mensual de informes</CardTitle>
+                <CardDescription>
+                  Periodo: <b>{targetMonth} {targetYear}</b> · Total esperado: <b>{TOTAL_EXPECTED_REPORTERS}</b> personas
+                </CardDescription>
+              </div>
+
+              <Button
+                type="button"
+                variant={easyMode ? 'default' : 'outline'}
+                onClick={() => setEasyMode((prev) => !prev)}
+              >
+                <Accessibility className="h-4 w-4 mr-2" />
+                {easyMode ? 'Modo fácil activado' : 'Activar modo fácil'}
+              </Button>
+            </div>
+          </CardHeader>
+
+          <CardContent className="space-y-5">
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-xl border border-border bg-card p-4">
+                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                  <Users className="h-4 w-4" /> Total esperado
+                </p>
+                <p className="text-3xl font-bold mt-1">{TOTAL_EXPECTED_REPORTERS}</p>
+              </div>
+
+              <div className="rounded-xl border border-success/40 bg-success/10 p-4">
+                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                  <UserCheck className="h-4 w-4 text-success" /> Ya enviaron
+                </p>
+                <p className="text-3xl font-bold mt-1 text-success">{uniqueSubmittersCount}</p>
+              </div>
+
+              <div className="rounded-xl border border-warning/40 bg-warning/10 p-4">
+                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                  <UserX className="h-4 w-4 text-warning" /> Faltan por enviar
+                </p>
+                <p className="text-3xl font-bold mt-1 text-amber-700 dark:text-amber-400">{missingCount}</p>
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between text-sm mb-2">
+                <span className="text-muted-foreground">Progreso de entrega</span>
+                <span className="font-semibold text-primary">{progressPercent}%</span>
+              </div>
+              <Progress value={progressPercent} className="h-3" />
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              El conteo se calcula con nombres únicos para el mes objetivo. Si una persona envía más de una vez en el mismo mes,
+              se cuenta una sola entrega.
+            </p>
+          </CardContent>
+        </Card>
+
         <Card className="shadow-card">
           <CardHeader>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">

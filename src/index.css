@@ -212,3 +212,16 @@
     transform: translateY(0);
   }
 }
+
+/* Accesibilidad: Modo fácil */
+body.easy-mode {
+  font-size: 18px;
+}
+
+body.easy-mode button {
+  min-height: 44px;
+}
+
+body.easy-mode .input-field {
+  font-size: 1.15rem;
+}
