@@ -11,12 +11,13 @@ import { ReportsTable } from '@/components/ReportsTable';
 import { ReportsGrid } from '@/components/ReportsGrid';
 import { AdminHeader } from '@/components/AdminHeader';
 import { SuperAdminPanel } from '@/components/SuperAdminPanel';
+import { AttendanceForm } from '@/components/AttendanceForm';
+import { AttendanceStats } from '@/components/AttendanceStats';
 import { useServiceReports } from '@/hooks/useServiceReports';
 import { useSuperintendents } from '@/hooks/useSuperintendents';
 import { useAuth } from '@/contexts/AuthContext';
 import { getPreviousMonth, getPreviousMonthYear } from '@/types/report';
 import {
-  Accessibility,
   AlertTriangle,
   LayoutGrid,
   ListChecks,
@@ -33,7 +34,7 @@ import {
   normalizePersonName,
 } from '@/data/congregationRoster';
 
-const EASY_MODE_KEY = 'report_hub_easy_mode';
+const BASE_EXPECTED_REPORTERS = 94;
 
 interface NameMappingRow {
   alias_normalized: string;
@@ -65,7 +66,7 @@ const Admin = () => {
   const { superintendents } = useSuperintendents();
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [easyMode, setEasyMode] = useState<boolean>(() => localStorage.getItem(EASY_MODE_KEY) === '1');
+  const [attendanceRefreshKey, setAttendanceRefreshKey] = useState(0);
 
   // Ajustes administrativos de padrón/duplicados.
   const [nameMappings, setNameMappings] = useState<NameMappingRow[]>([]);
@@ -84,11 +85,6 @@ const Admin = () => {
 
   const targetMonth = getPreviousMonth();
   const targetYear = getPreviousMonthYear();
-
-  useEffect(() => {
-    document.body.classList.toggle('easy-mode', easyMode);
-    localStorage.setItem(EASY_MODE_KEY, easyMode ? '1' : '0');
-  }, [easyMode]);
 
   const fetchAdjustments = useCallback(async () => {
     setAdjustmentsLoading(true);
@@ -160,7 +156,15 @@ const Admin = () => {
     return Array.from(map.values());
   }, [baseRoster, customMembers]);
 
-  const totalExpected = roster.length;
+  const additionalCustomMembers = useMemo(
+    () =>
+      customMembers.filter(
+        (member) => member.is_active && !findCongregationMemberByName(member.full_name)
+      ).length,
+    [customMembers]
+  );
+
+  const totalExpected = BASE_EXPECTED_REPORTERS + additionalCustomMembers;
 
   const rosterKeySet = useMemo(
     () => new Set(roster.map((member) => normalizePersonName(member.fullName))),
@@ -292,6 +296,10 @@ const Admin = () => {
 
   const missingCount = Math.max(totalExpected - submittedKnownCount, 0);
   const progressPercent = totalExpected > 0 ? Math.round((Math.min(submittedKnownCount, totalExpected) / totalExpected) * 100) : 0;
+  const missingMembersDisplay = useMemo(
+    () => missingMembers.slice(0, missingCount),
+    [missingMembers, missingCount]
+  );
 
   const handleRefresh = async () => {
     if (isRefreshing) return;
@@ -552,22 +560,13 @@ const Admin = () => {
       <main className="container mx-auto px-4 py-8 space-y-6">
         <Card className="shadow-card">
           <CardHeader>
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="flex flex-col gap-4">
               <div>
                 <CardTitle className="text-2xl">Seguimiento mensual de informes</CardTitle>
                 <CardDescription>
                   Periodo: <b>{targetMonth} {targetYear}</b> · Total esperado: <b>{totalExpected}</b> personas
                 </CardDescription>
               </div>
-
-              <Button
-                type="button"
-                variant={easyMode ? 'default' : 'outline'}
-                onClick={() => setEasyMode((prev) => !prev)}
-              >
-                <Accessibility className="h-4 w-4 mr-2" />
-                {easyMode ? 'Modo fácil activado' : 'Activar modo fácil'}
-              </Button>
             </div>
           </CardHeader>
 
@@ -616,6 +615,24 @@ const Admin = () => {
             </p>
           </CardContent>
         </Card>
+
+        <section className="space-y-4">
+          <div>
+            <h2 className="text-2xl font-semibold">Sección de asistencia</h2>
+            <p className="text-sm text-muted-foreground">
+              Registro de asistencia y visualización de estadísticas por reunión.
+            </p>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-3">
+            <div className="xl:col-span-1">
+              <AttendanceForm onSuccess={() => setAttendanceRefreshKey((prev) => prev + 1)} />
+            </div>
+            <div className="xl:col-span-2" key={attendanceRefreshKey}>
+              <AttendanceStats />
+            </div>
+          </div>
+        </section>
 
         <Card className="shadow-card">
           <CardHeader>
@@ -682,14 +699,14 @@ const Admin = () => {
               <div className="rounded-xl border border-border p-4">
                 <div className="flex items-center justify-between gap-2 mb-3">
                   <h3 className="font-semibold">Faltan por enviar</h3>
-                  <Badge variant="secondary">{missingMembers.length}</Badge>
+                  <Badge variant="secondary">{missingCount}</Badge>
                 </div>
 
-                {missingMembers.length === 0 ? (
+                {missingCount === 0 ? (
                   <p className="text-sm text-muted-foreground">Excelente: no hay pendientes en el padrón.</p>
                 ) : (
                   <div className="max-h-72 overflow-auto pr-1 space-y-2">
-                    {missingMembers.map(({ member }) => (
+                    {missingMembersDisplay.map(({ member }) => (
                       <div
                         key={`${member.groupNumber}-${member.fullName}`}
                         className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2"
