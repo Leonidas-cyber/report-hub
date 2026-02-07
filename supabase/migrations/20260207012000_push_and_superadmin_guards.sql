@@ -32,13 +32,16 @@ EXECUTE FUNCTION public.touch_push_subscription_updated_at();
 
 -- =============================================
 -- Super admin safety: do not allow self-demotion
+-- (usa TEXT, no enum)
 -- =============================================
-CREATE OR REPLACE FUNCTION public.set_admin_role(target_user_id uuid, new_role public.admin_role)
+CREATE OR REPLACE FUNCTION public.set_admin_role(target_user_id uuid, new_role text)
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
+DECLARE
+  current_role text;
 BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'Not authenticated';
@@ -48,15 +51,29 @@ BEGIN
     RAISE EXCEPTION 'Only super admins can change roles';
   END IF;
 
-  IF target_user_id = auth.uid() AND new_role = 'admin' THEN
+  IF new_role NOT IN ('admin', 'super_admin') THEN
+    RAISE EXCEPTION 'Invalid role';
+  END IF;
+
+  SELECT role INTO current_role
+  FROM public.admin_profiles
+  WHERE user_id = target_user_id;
+
+  IF current_role IS NULL THEN
+    RAISE EXCEPTION 'Admin profile not found';
+  END IF;
+
+  -- Bloqueo total de auto-democión
+  IF target_user_id = auth.uid() AND current_role = 'super_admin' AND new_role <> 'super_admin' THEN
     RAISE EXCEPTION 'No puedes quitarte tu propio rol de super admin';
   END IF;
 
-  INSERT INTO public.admin_profiles (user_id, role)
-  VALUES (target_user_id, new_role)
-  ON CONFLICT (user_id)
-  DO UPDATE SET role = EXCLUDED.role, updated_at = now();
+  UPDATE public.admin_profiles
+  SET role = new_role,
+      updated_at = now()
+  WHERE user_id = target_user_id;
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.set_admin_role(uuid, public.admin_role) TO authenticated;
+REVOKE ALL ON FUNCTION public.set_admin_role(uuid, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.set_admin_role(uuid, text) TO authenticated;
