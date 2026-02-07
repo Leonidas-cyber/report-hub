@@ -196,11 +196,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    // Limpieza optimista para evitar que la UI se quede bloqueada
     setUser(null);
     setSession(null);
     setIsAdmin(false);
     setIsSuperAdmin(false);
+
+    try {
+      // Cierre local rápido (evita cuelgues por red inestable)
+      await withTimeout((supabase.auth as any).signOut({ scope: 'local' }), 5000);
+      // Revocación global en segundo plano (best effort)
+      void (supabase.auth as any).signOut({ scope: 'global' }).catch(() => undefined);
+    } catch (err) {
+      console.warn('signOut fallback:', err);
+      try {
+        await (supabase.auth as any).signOut({ scope: 'local' });
+      } catch {
+        // ignore
+      }
+    }
   };
 
   const refreshAdminRole = async () => {

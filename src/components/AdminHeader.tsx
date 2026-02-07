@@ -65,6 +65,7 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
   const [uploading, setUploading] = useState(false);
   const [sendingNotification, setSendingNotification] = useState(false);
   const [avatarBust, setAvatarBust] = useState<number>(Date.now());
+  const [signingOut, setSigningOut] = useState(false);
 
   // Cropper state
   const [cropperOpen, setCropperOpen] = useState(false);
@@ -297,8 +298,27 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
   };
 
   const handleSignOut = async () => {
-    await signOut();
-    toast.success('Sesión cerrada');
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await Promise.race([
+        signOut(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 7000)),
+      ]);
+      toast.success('Sesión cerrada');
+      window.location.assign('/login');
+    } catch (error) {
+      console.warn('Sign out timeout/error:', error);
+      toast.error('La salida tardó más de lo normal. Redirigiendo...');
+      try {
+        await (supabase.auth as any).signOut({ scope: 'local' });
+      } catch {
+        // ignore
+      }
+      window.location.assign('/login');
+    } finally {
+      setSigningOut(false);
+    }
   };
 
   const displayName = profile?.full_name || user?.user_metadata?.full_name || 'Administrador';
@@ -448,9 +468,9 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
                 </AlertDialogContent>
               </AlertDialog>
 
-              <Button variant="outline" size="sm" onClick={handleSignOut} className="px-2 sm:px-3">
+              <Button variant="outline" size="sm" onClick={handleSignOut} disabled={signingOut} className="px-2 sm:px-3">
                 <LogOut className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Salir</span>
+                <span className="hidden sm:inline">{signingOut ? 'Saliendo...' : 'Salir'}</span>
               </Button>
             </div>
           </div>

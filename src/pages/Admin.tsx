@@ -1,4 +1,7 @@
 import { useMemo, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { exportToExcel } from '@/utils/exportExcel';
+import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ReportsTable } from '@/components/ReportsTable';
@@ -12,9 +15,10 @@ import { Table2, LayoutGrid, ShieldCheck } from 'lucide-react';
 
 const Admin = () => {
   const { user, isSuperAdmin } = useAuth();
-  const { reports, loading, updateReport, deleteReport } = useServiceReports();
+  const { reports, loading, updateReport, deleteReport, refetch } = useServiceReports();
   const { superintendents } = useSuperintendents();
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const sortedSuperintendents = useMemo(() => {
     return [...superintendents].sort((a, b) => {
@@ -22,6 +26,50 @@ const Admin = () => {
       return a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
     });
   }, [superintendents]);
+
+
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await Promise.race([
+        Promise.resolve(refetch()),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000)),
+      ]);
+      toast.success('Datos actualizados');
+    } catch (error) {
+      console.error('Error refreshing reports:', error);
+      toast.error('No se pudo actualizar. Intenta de nuevo.');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleExport = () => {
+    try {
+      exportToExcel(reports, 'informes_arrayanes');
+      toast.success('Archivo Excel generado');
+    } catch (error) {
+      console.error('Error exporting excel:', error);
+      toast.error('No se pudo exportar a Excel');
+    }
+  };
+
+  const handleClearDatabase = async () => {
+    try {
+      const { error } = await supabase
+        .from('service_reports')
+        .delete()
+        .not('id', 'is', null);
+
+      if (error) throw error;
+      await refetch();
+      toast.success('Base de datos limpiada correctamente');
+    } catch (error) {
+      console.error('Error clearing database:', error);
+      toast.error('No se pudo borrar la base de datos');
+    }
+  };
 
   if (loading) {
     return (
@@ -36,7 +84,12 @@ const Admin = () => {
 
   return (
     <div className="min-h-screen bg-gradient-subtle">
-      <AdminHeader />
+      <AdminHeader
+        onRefresh={handleRefresh}
+        onExport={handleExport}
+        onClearDatabase={handleClearDatabase}
+        isRefreshing={isRefreshing}
+      />
 
       <main className="container mx-auto px-4 py-8 space-y-6">
         <Card className="shadow-card">
