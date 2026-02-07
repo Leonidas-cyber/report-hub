@@ -12,12 +12,16 @@ import {
   User,
 } from "lucide-react";
 
+const getPrefersDark = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia("(prefers-color-scheme: dark)").matches;
+
 const About = () => {
-  const [isDarkMode, setIsDarkMode] = useState(
-    window.matchMedia("(prefers-color-scheme: dark)").matches
-  );
+  const [isDarkMode, setIsDarkMode] = useState(getPrefersDark());
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     const media = window.matchMedia("(prefers-color-scheme: dark)");
 
     const handleChange = (event: MediaQueryListEvent) => {
@@ -39,13 +43,17 @@ const About = () => {
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <img
-              src="/favicon-64.png?v=3"
+              src="/favicon-64.png?v=4"
               alt="Icono Informes"
               className="h-9 w-9 object-contain"
             />
             <div className="min-w-0">
-              <p className="font-semibold leading-tight truncate">Información del sistema</p>
-              <p className="text-xs text-muted-foreground truncate">Congregación Arrayanes</p>
+              <p className="font-semibold leading-tight truncate">
+                Información del sistema
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                Congregación Arrayanes
+              </p>
             </div>
           </div>
 
@@ -62,11 +70,16 @@ const About = () => {
         <section className="mb-8">
           <h1 className="text-3xl font-bold">Página de información</h1>
           <p className="text-muted-foreground mt-2">
-            Esta sección explica el propósito del sitio, su seguridad y el estado visual según el tema del dispositivo.
+            Esta sección presenta el propósito del sistema, su seguridad y el
+            estado visual según el tema del dispositivo.
           </p>
 
           <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 bg-card">
-            {isDarkMode ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+            {isDarkMode ? (
+              <Moon className="h-4 w-4" />
+            ) : (
+              <Sun className="h-4 w-4" />
+            )}
             <span className="text-sm font-medium">
               Modo detectado: {isDarkMode ? "Oscuro" : "Claro"}
             </span>
@@ -83,10 +96,15 @@ const About = () => {
             </CardHeader>
             <CardContent className="text-muted-foreground space-y-2">
               <p>
-                Facilita el envío mensual de informes de servicio de forma rápida, clara y desde cualquier dispositivo.
+                Este sistema web fue desarrollado de forma gratuita y sin fines
+                de lucro para brindar una herramienta útil a la comunidad de la
+                Congregación Arrayanes.
               </p>
               <p>
-                El objetivo es reducir errores de captura y mejorar la organización general de la congregación.
+                Facilita el envío y la administración mensual de informes de
+                servicio desde cualquier dispositivo, reduciendo errores de
+                captura y mejorando la organización general con una experiencia
+                clara, segura y confiable.
               </p>
             </CardContent>
           </Card>
@@ -100,10 +118,12 @@ const About = () => {
             </CardHeader>
             <CardContent className="text-muted-foreground space-y-2">
               <p>
-                El sitio usa autenticación para el panel administrativo y reglas de acceso para proteger los datos.
+                El sitio usa autenticación para el panel administrativo y reglas
+                de acceso para proteger los datos.
               </p>
               <p>
-                Además, se aplican permisos por rol para restringir acciones sensibles.
+                Además, se aplican permisos por rol para restringir acciones
+                sensibles.
               </p>
             </CardContent>
           </Card>
@@ -118,9 +138,35 @@ const About = () => {
           </CardHeader>
           <CardContent>
             <p className="font-semibold text-primary">Leonardo González</p>
-           <p className="text-muted-foreground mt-2">
-  Creo que la tecnología debe ayudar a las personas. Como estudiante de ingeniería eléctrica y desarrollador, este proyecto es mi aporte para facilitar la vida comunitaria mediante un sistema intuitivo, estable y confiable para el registro de informes.
-           </p>
+            <p className="text-muted-foreground mt-2">
+              Como estudiante de ingeniería eléctrica y desarrollador
+              comprometido con el servicio a los demás, diseñé y migré este
+              sistema para mejorar el registro y la administración de informes,
+              priorizando facilidad de uso, seguridad y confiabilidad.
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="text-lg">Estado del sistema</CardTitle>
+          </CardHeader>
+          <CardContent className="text-muted-foreground space-y-2">
+            <p>En producción activa.</p>
+            <p>
+              <span className="font-semibold text-foreground">Versión:</span>{" "}
+              V45 · Generación 2 (v45.2.0)
+            </p>
+            <p>
+              <span className="font-semibold text-foreground">
+                Última actualización:
+              </span>{" "}
+              07/02/2026
+            </p>
+            <p>
+              <span className="font-semibold text-foreground">Migración:</span>{" "}
+              completada al nuevo sistema.
+            </p>
           </CardContent>
         </Card>
 
@@ -130,8 +176,7 @@ const About = () => {
           </CardHeader>
           <CardContent className="text-muted-foreground">
             <p>
-              Esta obra está bajo una licencia
-              {" "}
+              Esta obra está bajo una licencia{" "}
               <a
                 href="https://creativecommons.org/licenses/by-nc-nd/4.0/"
                 target="_blank"
