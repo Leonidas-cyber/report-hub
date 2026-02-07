@@ -25,7 +25,7 @@ import {
 import { ImageCropper } from '@/components/ImageCropper';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { sendPushNotificationToAll, isPushNotificationSupported } from '@/utils/pushNotifications';
+import { isPushNotificationSupported } from '@/utils/pushNotifications';
 import { sendBroadcastNotification } from '@/utils/notifications';
 import { ArrowLeft, RefreshCw, FileSpreadsheet, LogOut, Camera, User, Bell, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -274,7 +274,7 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
       const message = `¡Recuerda enviar tu informe de servicio de ${previousMonth}! - Congregación Arrayanes`;
 
       if (isPushNotificationSupported()) {
-        const result = await sendPushNotificationToAll(message);
+        const result = await sendBroadcastNotification(message);
         if (result?.success) {
           toast.success(`Notificación enviada a ${result.sent || 0} dispositivos`);
         } else {
