@@ -4,6 +4,7 @@ import { exportToExcel } from '@/utils/exportExcel';
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { ReportsTable } from '@/components/ReportsTable';
 import { ReportsGrid } from '@/components/ReportsGrid';
@@ -13,9 +14,24 @@ import { useServiceReports } from '@/hooks/useServiceReports';
 import { useSuperintendents } from '@/hooks/useSuperintendents';
 import { useAuth } from '@/contexts/AuthContext';
 import { getPreviousMonth, getPreviousMonthYear } from '@/types/report';
-import { Table2, LayoutGrid, ShieldCheck, Users, UserCheck, UserX, Accessibility } from 'lucide-react';
+import {
+  Accessibility,
+  AlertTriangle,
+  LayoutGrid,
+  ListChecks,
+  ShieldCheck,
+  Table2,
+  UserCheck,
+  UserX,
+  Users,
+} from 'lucide-react';
+import {
+  findCongregationMemberByName,
+  getCongregationRoster,
+  normalizePersonName,
+  TOTAL_EXPECTED_REPORTERS,
+} from '@/data/congregationRoster';
 
-const TOTAL_EXPECTED_REPORTERS = 96;
 const EASY_MODE_KEY = 'report_hub_easy_mode';
 
 const Admin = () => {
@@ -34,6 +50,12 @@ const Admin = () => {
     localStorage.setItem(EASY_MODE_KEY, easyMode ? '1' : '0');
   }, [easyMode]);
 
+  const roster = useMemo(() => getCongregationRoster(), []);
+  const rosterKeySet = useMemo(
+    () => new Set(roster.map((member) => normalizePersonName(member.fullName))),
+    [roster]
+  );
+
   const sortedSuperintendents = useMemo(() => {
     return [...superintendents].sort((a, b) => {
       if (a.group_number !== b.group_number) return a.group_number - b.group_number;
@@ -46,18 +68,72 @@ const Admin = () => {
     [reports, targetMonth, targetYear]
   );
 
-  const uniqueSubmittersCount = useMemo(() => {
-    const unique = new Set<string>();
+  // Para evitar dobles envíos del mismo publicador en el mes,
+  // tomamos solo el informe más reciente por nombre.
+  const latestReportBySubmitter = useMemo(() => {
+    const map = new Map<string, (typeof reportsForTargetMonth)[number]>();
+
     for (const report of reportsForTargetMonth) {
-      const normalized = report.fullName.trim().toLocaleLowerCase('es-MX');
-      if (normalized) unique.add(normalized);
+      const key = normalizePersonName(report.fullName);
+      if (!key) continue;
+
+      const previous = map.get(key);
+      if (!previous) {
+        map.set(key, report);
+        continue;
+      }
+
+      const previousTs = new Date(previous.submittedAt).getTime();
+      const currentTs = new Date(report.submittedAt).getTime();
+      if (currentTs >= previousTs) {
+        map.set(key, report);
+      }
     }
-    return unique.size;
+
+    return map;
   }, [reportsForTargetMonth]);
 
-  const missingCount = Math.max(TOTAL_EXPECTED_REPORTERS - uniqueSubmittersCount, 0);
+  const rosterStatus = useMemo(() => {
+    return roster.map((member) => {
+      const key = normalizePersonName(member.fullName);
+      const report = latestReportBySubmitter.get(key);
+      const selectedGroup = report?.superintendentGroupNumber ?? null;
+      const hasWrongGroup = Boolean(
+        report && typeof selectedGroup === 'number' && selectedGroup !== member.groupNumber
+      );
+
+      return {
+        member,
+        report,
+        selectedGroup,
+        hasWrongGroup,
+      };
+    });
+  }, [roster, latestReportBySubmitter]);
+
+  const submittedKnownCount = useMemo(
+    () => rosterStatus.filter((item) => Boolean(item.report)).length,
+    [rosterStatus]
+  );
+
+  const missingMembers = useMemo(
+    () => rosterStatus.filter((item) => !item.report),
+    [rosterStatus]
+  );
+
+  const wrongGroupMembers = useMemo(
+    () => rosterStatus.filter((item) => item.hasWrongGroup),
+    [rosterStatus]
+  );
+
+  const unknownSubmitters = useMemo(() => {
+    const values = Array.from(latestReportBySubmitter.values());
+    return values.filter((report) => !rosterKeySet.has(normalizePersonName(report.fullName)));
+  }, [latestReportBySubmitter, rosterKeySet]);
+
+  const missingCount = Math.max(TOTAL_EXPECTED_REPORTERS - submittedKnownCount, 0);
   const progressPercent = Math.round(
-    (Math.min(uniqueSubmittersCount, TOTAL_EXPECTED_REPORTERS) / TOTAL_EXPECTED_REPORTERS) * 100
+    (Math.min(submittedKnownCount, TOTAL_EXPECTED_REPORTERS) / TOTAL_EXPECTED_REPORTERS) * 100
   );
 
   const handleRefresh = async () => {
@@ -148,7 +224,7 @@ const Admin = () => {
           </CardHeader>
 
           <CardContent className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-4">
               <div className="rounded-xl border border-border bg-card p-4">
                 <p className="text-sm text-muted-foreground flex items-center gap-2">
                   <Users className="h-4 w-4" /> Total esperado
@@ -160,7 +236,7 @@ const Admin = () => {
                 <p className="text-sm text-muted-foreground flex items-center gap-2">
                   <UserCheck className="h-4 w-4 text-success" /> Ya enviaron
                 </p>
-                <p className="text-3xl font-bold mt-1 text-success">{uniqueSubmittersCount}</p>
+                <p className="text-3xl font-bold mt-1 text-success">{submittedKnownCount}</p>
               </div>
 
               <div className="rounded-xl border border-warning/40 bg-warning/10 p-4">
@@ -168,6 +244,13 @@ const Admin = () => {
                   <UserX className="h-4 w-4 text-warning" /> Faltan por enviar
                 </p>
                 <p className="text-3xl font-bold mt-1 text-amber-700 dark:text-amber-400">{missingCount}</p>
+              </div>
+
+              <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4">
+                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-destructive" /> Grupo erróneo
+                </p>
+                <p className="text-3xl font-bold mt-1 text-destructive">{wrongGroupMembers.length}</p>
               </div>
             </div>
 
@@ -180,9 +263,102 @@ const Admin = () => {
             </div>
 
             <p className="text-xs text-muted-foreground">
-              El conteo se calcula con nombres únicos para el mes objetivo. Si una persona envía más de una vez en el mismo mes,
-              se cuenta una sola entrega.
+              Conteo basado en padrón y con nombre único por mes. Si alguien envía varias veces, se toma el último informe.
             </p>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-card">
+          <CardHeader>
+            <CardTitle className="text-xl flex items-center gap-2">
+              <ListChecks className="h-5 w-5" />
+              Control de padrón (solo administración)
+            </CardTitle>
+            <CardDescription>
+              Aquí puedes ver exactamente quién ya envió, quién falta y posibles envíos en grupo incorrecto.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-xl border border-border p-4">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <h3 className="font-semibold">Faltan por enviar</h3>
+                <Badge variant="secondary">{missingMembers.length}</Badge>
+              </div>
+
+              {missingMembers.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Excelente: no hay pendientes en el padrón.</p>
+              ) : (
+                <div className="max-h-72 overflow-auto pr-1 space-y-2">
+                  {missingMembers.map(({ member }) => (
+                    <div
+                      key={`${member.groupNumber}-${member.fullName}`}
+                      className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2"
+                    >
+                      <p className="text-sm font-medium">{member.fullName}</p>
+                      <Badge variant="outline">Grupo {member.groupNumber}</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-xl border border-destructive/30 p-4">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <h3 className="font-semibold">Posible grupo erróneo</h3>
+                  <Badge variant="destructive">{wrongGroupMembers.length}</Badge>
+                </div>
+
+                {wrongGroupMembers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Sin diferencias detectadas contra el padrón.</p>
+                ) : (
+                  <div className="max-h-40 overflow-auto pr-1 space-y-2">
+                    {wrongGroupMembers.map(({ member, selectedGroup, report }) => (
+                      <div
+                        key={report?.id || `${member.groupNumber}-${member.fullName}`}
+                        className="rounded-lg border border-destructive/30 px-3 py-2"
+                      >
+                        <p className="text-sm font-medium">{member.fullName}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Padrón: <b>Grupo {member.groupNumber}</b> · Enviado en: <b>Grupo {selectedGroup}</b>
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-border p-4">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <h3 className="font-semibold">No encontrados en padrón</h3>
+                  <Badge variant="secondary">{unknownSubmitters.length}</Badge>
+                </div>
+
+                {unknownSubmitters.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Todos los envíos coinciden con el padrón cargado.</p>
+                ) : (
+                  <div className="max-h-32 overflow-auto pr-1 space-y-2">
+                    {unknownSubmitters.map((report) => {
+                      const maybeMember = findCongregationMemberByName(report.fullName);
+                      return (
+                        <div
+                          key={report.id}
+                          className="rounded-lg border border-border/60 px-3 py-2"
+                        >
+                          <p className="text-sm font-medium">{report.fullName}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {maybeMember
+                              ? `Sugerencia: Grupo ${maybeMember.groupNumber}`
+                              : 'Revisar ortografía o agregar al padrón.'}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           </CardContent>
         </Card>
 

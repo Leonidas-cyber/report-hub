@@ -30,6 +30,7 @@ export interface ServiceReport {
   participated: boolean;
   superintendentId: string;
   superintendentName: string;
+  superintendentGroupNumber?: number | null;
   notes: string;
   month: string;
   year: number;
@@ -59,23 +60,28 @@ export function useServiceReports() {
       return;
     }
 
-    const transformedReports: ServiceReport[] = (data || []).map((report: ServiceReportDB & { superintendents: { id: string; name: string; group_number: number } | null }) => ({
-      id: report.id,
-      fullName: report.full_name,
-      role: report.role,
-      hours: report.hours ?? undefined,
-      bibleCourses: report.bible_courses ?? undefined,
-      participated: report.participated,
-      superintendentId: report.superintendent_id || '',
-      superintendentName: report.superintendents 
-        ? `${report.superintendents.name} Grupo ${report.superintendents.group_number}` 
-        : '',
-      notes: report.notes || '',
-      month: report.month,
-      year: report.year,
-      status: report.status,
-      submittedAt: report.submitted_at,
-    }));
+    const transformedReports: ServiceReport[] = (data || []).map(
+      (report: ServiceReportDB & {
+        superintendents: { id: string; name: string; group_number: number } | null;
+      }) => ({
+        id: report.id,
+        fullName: report.full_name,
+        role: report.role,
+        hours: report.hours ?? undefined,
+        bibleCourses: report.bible_courses ?? undefined,
+        participated: report.participated,
+        superintendentId: report.superintendent_id || '',
+        superintendentName: report.superintendents
+          ? `${report.superintendents.name} Grupo ${report.superintendents.group_number}`
+          : '',
+        superintendentGroupNumber: report.superintendents?.group_number ?? null,
+        notes: report.notes || '',
+        month: report.month,
+        year: report.year,
+        status: report.status,
+        submittedAt: report.submitted_at,
+      })
+    );
 
     setReports(transformedReports);
     setLoading(false);
@@ -108,7 +114,7 @@ export function useServiceReports() {
 
   const updateReport = async (id: string, updates: Partial<ServiceReport>) => {
     const dbUpdates: Partial<ServiceReportDB> = {};
-    
+
     if (updates.fullName !== undefined) dbUpdates.full_name = updates.fullName;
     if (updates.role !== undefined) dbUpdates.role = updates.role;
     if (updates.hours !== undefined) dbUpdates.hours = updates.hours;
@@ -118,10 +124,7 @@ export function useServiceReports() {
     if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
     if (updates.status !== undefined) dbUpdates.status = updates.status;
 
-    const { error } = await supabase
-      .from('service_reports')
-      .update(dbUpdates)
-      .eq('id', id);
+    const { error } = await supabase.from('service_reports').update(dbUpdates).eq('id', id);
 
     if (error) {
       console.error('Error updating report:', error);
@@ -130,10 +133,7 @@ export function useServiceReports() {
   };
 
   const deleteReport = async (id: string) => {
-    const { error } = await supabase
-      .from('service_reports')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('service_reports').delete().eq('id', id);
 
     if (error) {
       console.error('Error deleting report:', error);
