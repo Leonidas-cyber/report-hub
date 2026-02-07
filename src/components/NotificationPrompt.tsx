@@ -15,9 +15,9 @@ export function NotificationPrompt() {
   useEffect(() => {
     const checkStatus = async () => {
       if (isPushNotificationSupported()) {
-        const pushStatus = await getPushSubscriptionStatus();
+        const isSubscribed = await getPushSubscriptionStatus();
 
-        if (pushStatus === 'subscribed') {
+        if (isSubscribed) {
           setStatus('granted');
           return;
         }

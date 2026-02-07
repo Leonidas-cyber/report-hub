@@ -101,6 +101,12 @@ export const getVapidPublicKey = async (): Promise<string | null> => {
   return data.publicKey;
 };
 
+
+export const isPushSupported = (): boolean => {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+  return 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
+};
+
 const urlBase64ToUint8Array = (base64String: string): Uint8Array => {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -108,7 +114,7 @@ const urlBase64ToUint8Array = (base64String: string): Uint8Array => {
   return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
 };
 
-export const subscribeToPushNotifications = async (name: string): Promise<boolean> => {
+export const subscribeToPushNotifications = async (name = 'Usuario'): Promise<boolean> => {
   try {
     const permissionGranted = await requestNotificationPermission();
     if (!permissionGranted) {
@@ -377,4 +383,12 @@ export const sendReportReminder = async (): Promise<boolean> => {
     console.error('Error sending reminder notifications:', error);
     return false;
   }
+};
+
+
+// --- Backward-compat exports for existing UI imports ---
+export const isPushNotificationSupported = isPushSupported;
+
+export const getPushSubscriptionStatus = async () => {
+  return getCurrentSubscriptionStatus();
 };
