@@ -571,9 +571,9 @@ const Admin = () => {
             <CardContent className="p-3">
               <TabsList className="h-auto w-full flex flex-wrap justify-start gap-2 bg-muted/40">
                 <TabsTrigger value="seguimiento">Seguimiento</TabsTrigger>
-                <TabsTrigger value="asistencia">Asistencia</TabsTrigger>
-                <TabsTrigger value="padron">Padrón</TabsTrigger>
                 <TabsTrigger value="informes">Informes</TabsTrigger>
+                <TabsTrigger value="padron">Padrón</TabsTrigger>
+                <TabsTrigger value="asistencia">Asistencia</TabsTrigger>
                 <TabsTrigger value="superadmin">Super Admin</TabsTrigger>
               </TabsList>
             </CardContent>

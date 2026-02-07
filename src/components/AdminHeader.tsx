@@ -23,11 +23,12 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { ImageCropper } from '@/components/ImageCropper';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { isPushNotificationSupported } from '@/utils/pushNotifications';
 import { sendBroadcastNotification } from '@/utils/notifications';
-import { ArrowLeft, RefreshCw, FileSpreadsheet, LogOut, Camera, User, Bell, Trash2 } from 'lucide-react';
+import { ArrowLeft, RefreshCw, FileSpreadsheet, LogOut, Camera, User, Bell, Trash2, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface AdminProfile {
@@ -66,6 +67,7 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
   const [sendingNotification, setSendingNotification] = useState(false);
   const [avatarBust, setAvatarBust] = useState<number>(Date.now());
   const [signingOut, setSigningOut] = useState(false);
+  const [photoViewerOpen, setPhotoViewerOpen] = useState(false);
 
   // Cropper state
   const [cropperOpen, setCropperOpen] = useState(false);
@@ -370,6 +372,17 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
                     {uploading ? 'Subiendo...' : 'Cambiar foto'}
                   </DropdownMenuItem>
 
+                  <DropdownMenuItem
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      setPhotoViewerOpen(true);
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    Ver foto de perfil
+                  </DropdownMenuItem>
+
                   <DropdownMenuItem className="flex items-center">
                     <User className="h-4 w-4 mr-2" />
                     <span className="truncate">{user?.email}</span>
@@ -478,6 +491,28 @@ export function AdminHeader({ onRefresh, onExport, onClearDatabase, isRefreshing
           </div>
         </div>
       </header>
+
+      <Dialog open={photoViewerOpen} onOpenChange={setPhotoViewerOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Foto de perfil</DialogTitle>
+            <DialogDescription>
+              Vista ampliada de tu foto de perfil.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col items-center gap-3 py-2">
+            <Avatar className="h-40 w-40 border-2 border-primary/20">
+              <AvatarImage src={avatarSrc} alt={displayName} />
+              <AvatarFallback className="bg-primary/10 text-primary text-4xl font-semibold">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <p className="text-sm font-medium">{displayName}</p>
+            <p className="text-xs text-muted-foreground break-all text-center">{user?.email}</p>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal para elegir cómo se verá la foto */}
       <ImageCropper

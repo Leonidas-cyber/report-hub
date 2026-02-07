@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Bell, BellOff, Check } from 'lucide-react';
-import { 
+import {
   subscribeToPushNotifications,
   getPushSubscriptionStatus,
-  isPushNotificationSupported
+  isPushNotificationSupported,
+  PUSH_SUBSCRIPTION_STATUS_EVENT,
 } from '@/utils/pushNotifications';
 import { toast } from 'sonner';
 
@@ -12,36 +13,65 @@ export function NotificationPrompt() {
   const [status, setStatus] = useState<'granted' | 'denied' | 'default' | 'unsupported'>('default');
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    const checkStatus = async () => {
-      if (isPushNotificationSupported()) {
-        const isSubscribed = await getPushSubscriptionStatus();
+  const checkStatus = useCallback(async () => {
+    if (isPushNotificationSupported()) {
+      const isSubscribed = await getPushSubscriptionStatus();
 
-        if (isSubscribed) {
-          setStatus('granted');
-          return;
-        }
-
-        // Si el navegador soporta push pero no hay suscripción,
-        // NO marcar como activado aunque el permiso esté concedido.
-        if (Notification.permission === 'denied') {
-          setStatus('denied');
-        } else {
-          setStatus('default');
-        }
+      if (isSubscribed) {
+        setStatus('granted');
         return;
       }
 
-      // Navegador sin soporte Push
-      if (!('Notification' in window)) {
-        setStatus('unsupported');
+      // Si el navegador soporta push pero no hay suscripción,
+      // NO marcar como activado aunque el permiso esté concedido.
+      if (Notification.permission === 'denied') {
+        setStatus('denied');
       } else {
-        setStatus(Notification.permission as 'granted' | 'denied' | 'default');
+        setStatus('default');
+      }
+      return;
+    }
+
+    // Navegador sin soporte Push
+    if (!('Notification' in window)) {
+      setStatus('unsupported');
+    } else {
+      setStatus(Notification.permission as 'granted' | 'denied' | 'default');
+    }
+  }, []);
+
+  useEffect(() => {
+    void checkStatus();
+
+    const onFocus = () => {
+      void checkStatus();
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void checkStatus();
       }
     };
 
-    checkStatus();
-  }, []);
+    const onPushStatusChanged = () => {
+      void checkStatus();
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener(PUSH_SUBSCRIPTION_STATUS_EVENT, onPushStatusChanged as EventListener);
+
+    const intervalId = window.setInterval(() => {
+      void checkStatus();
+    }, 30000);
+
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener(PUSH_SUBSCRIPTION_STATUS_EVENT, onPushStatusChanged as EventListener);
+      window.clearInterval(intervalId);
+    };
+  }, [checkStatus]);
 
   const handleEnableNotifications = async () => {
     setIsLoading(true);
@@ -55,7 +85,7 @@ export function NotificationPrompt() {
       const success = await subscribeToPushNotifications();
 
       if (success) {
-        setStatus('granted');
+        await checkStatus();
         toast.success('¡Notificaciones activadas! Recibirás recordatorios aunque cierres la app.');
       } else {
         if (Notification.permission === 'denied') {

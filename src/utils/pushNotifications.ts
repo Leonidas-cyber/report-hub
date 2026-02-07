@@ -18,6 +18,20 @@ const submittedCacheKey = (email: string, month: string, year: number) =>
 const normalizeEmail = (email?: string | null) => (email || '').trim().toLowerCase() || null;
 const normalizeMonth = (m: string | null | undefined) => (m || '').trim().toLowerCase();
 
+const PUSH_STATUS_EVENT = 'push-subscription-status-changed';
+
+const emitPushStatusChanged = (subscribed: boolean) => {
+  try {
+    window.dispatchEvent(
+      new CustomEvent(PUSH_STATUS_EVENT, {
+        detail: { subscribed },
+      }),
+    );
+  } catch {
+    // ignore dispatch errors
+  }
+};
+
 const getSafeCurrentUserEmail = async (): Promise<string | null> => {
   if (currentUserEmail) return currentUserEmail;
 
@@ -214,6 +228,7 @@ export const subscribeToPushNotifications = async (name = 'Usuario'): Promise<bo
       },
     };
 
+    emitPushStatusChanged(true);
     return true;
   } catch (error) {
     console.error('Error subscribing to push notifications:', error);
@@ -245,6 +260,7 @@ export const unsubscribeFromPushNotifications = async (): Promise<boolean> => {
     }
 
     currentSubscription = null;
+    emitPushStatusChanged(false);
     return true;
   } catch (error) {
     console.error('Error unsubscribing from push notifications:', error);
@@ -259,8 +275,10 @@ export const getCurrentSubscriptionStatus = async (): Promise<boolean> => {
     const registration = await getOrRegisterServiceWorker();
     const subscription = await registration.pushManager.getSubscription();
 
+    // Sin suscripción en el navegador => no habilitadas.
     if (!subscription) return false;
 
+    // Si existe en navegador, intentamos validar en DB.
     const { data, error } = await supabase
       .from('push_subscriptions')
       .select('is_active')
@@ -278,10 +296,22 @@ export const getCurrentSubscriptionStatus = async (): Promise<boolean> => {
       .eq('endpoint', subscription.endpoint)
       .maybeSingle();
 
-    return !fallbackError && !!fallbackData;
+    if (!fallbackError && !!fallbackData) return true;
+
+    // Failsafe: si el navegador sí está suscrito, no mostrar "activar" por falsos negativos temporales.
+    return true;
   } catch (error) {
     console.error('Error checking subscription status:', error);
-    return false;
+
+    // Failsafe extra: intenta confirmar solo con navegador
+    try {
+      if (!('serviceWorker' in navigator)) return false;
+      const reg = await getOrRegisterServiceWorker();
+      const swSub = await reg.pushManager.getSubscription();
+      return !!swSub;
+    } catch {
+      return false;
+    }
   }
 };
 
@@ -501,6 +531,7 @@ export const sendReportReminder = async (): Promise<boolean> => {
 
 
 // --- Backward-compat exports for existing UI imports ---
+export const PUSH_SUBSCRIPTION_STATUS_EVENT = PUSH_STATUS_EVENT;
 export const isPushNotificationSupported = isPushSupported;
 
 export const getPushSubscriptionStatus = async () => {
