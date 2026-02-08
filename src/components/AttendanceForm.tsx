@@ -67,7 +67,7 @@ export function AttendanceForm({ onSuccess }: AttendanceFormProps) {
   };
 
   return (
-    <Card className="border-primary/20">
+    <Card className="border-primary/20 w-full max-w-full overflow-hidden">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-primary">
           <Calendar className="h-5 w-5" />

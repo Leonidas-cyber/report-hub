@@ -561,7 +561,7 @@ const Admin = () => {
         isRefreshing={isRefreshing}
       />
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 overflow-x-hidden">
         <Tabs
           value={activeSection}
           onValueChange={(value) => setActiveSection(value as AdminSection)}
@@ -640,19 +640,19 @@ const Admin = () => {
           </TabsContent>
 
           <TabsContent value="asistencia">
-            <Card className="shadow-card">
+            <Card className="shadow-card overflow-hidden">
               <CardHeader>
                 <CardTitle className="text-2xl">Sección de asistencia</CardTitle>
                 <CardDescription>
                   Registro de asistencia y visualización de estadísticas por reunión.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 sm:p-6">
                 <div className="grid gap-6 xl:grid-cols-3">
-                  <div className="xl:col-span-1">
+                  <div className="xl:col-span-1 min-w-0">
                     <AttendanceForm onSuccess={() => setAttendanceRefreshKey((prev) => prev + 1)} />
                   </div>
-                  <div className="xl:col-span-2" key={attendanceRefreshKey}>
+                  <div className="xl:col-span-2 min-w-0" key={attendanceRefreshKey}>
                     <AttendanceStats />
                   </div>
                 </div>

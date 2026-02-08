@@ -140,7 +140,7 @@ export function AttendanceStats() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-primary">
@@ -149,11 +149,11 @@ export function AttendanceStats() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-4 mb-6">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-wrap gap-3 sm:gap-4 mb-6 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
               <span className="text-sm text-muted-foreground">Mes:</span>
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger className="w-[140px]">
+                <SelectTrigger className="w-[130px] sm:w-[140px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -165,7 +165,7 @@ export function AttendanceStats() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <span className="text-sm text-muted-foreground">Año:</span>
               <Select value={selectedYear} onValueChange={setSelectedYear}>
                 <SelectTrigger className="w-[100px]">
@@ -180,7 +180,7 @@ export function AttendanceStats() {
                 </SelectContent>
               </Select>
             </div>
-            <Button variant="outline" onClick={() => void fetchRecords()}>
+            <Button variant="outline" onClick={() => void fetchRecords()} className="w-full sm:w-auto">
               <Calculator className="h-4 w-4 mr-2" />
               Calcular Promedios
             </Button>
