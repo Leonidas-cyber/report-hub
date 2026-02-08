@@ -67,6 +67,7 @@ const Index = () => {
   const [draftReady, setDraftReady] = useState(false);
 
   const showHoursField = role === 'precursor_auxiliar' || role === 'precursor_regular';
+  const showBibleCoursesField = Boolean(role);
 
   const requiredTotal = 4;
   const completedRequired = useMemo(() => {
@@ -83,6 +84,12 @@ const Index = () => {
   const step1Done = Boolean(fullName.trim() && role);
   const step2Done = Boolean(participated !== '' && superintendentId);
   const step3Ready = step1Done && step2Done;
+
+  useEffect(() => {
+    if (!showHoursField && hours !== '') {
+      setHours('');
+    }
+  }, [showHoursField, hours]);
 
   useEffect(() => {
     document.body.classList.toggle('easy-mode', easyMode);
@@ -432,35 +439,35 @@ const Index = () => {
                 </Select>
               </div>
 
-              {/* Campos condicionales para precursores */}
+              {/* Campos condicionales por rol */}
               {showHoursField && (
-                <>
-                  <div className="space-y-2 animate-fade-in">
-                    <Label htmlFor="hours" className={labelClass}>Número de Horas:</Label>
-                    <Input
-                      id="hours"
-                      type="number"
-                      min="0"
-                      value={hours}
-                      onChange={(e) => setHours(e.target.value)}
-                      placeholder="Ingrese el número de horas"
-                      className={inputClass}
-                    />
-                  </div>
+                <div className="space-y-2 animate-fade-in">
+                  <Label htmlFor="hours" className={labelClass}>Número de Horas:</Label>
+                  <Input
+                    id="hours"
+                    type="number"
+                    min="0"
+                    value={hours}
+                    onChange={(e) => setHours(e.target.value)}
+                    placeholder="Ingrese el número de horas"
+                    className={inputClass}
+                  />
+                </div>
+              )}
 
-                  <div className="space-y-2 animate-fade-in">
-                    <Label htmlFor="bibleCourses" className={labelClass}>Número de Cursos Bíblicos:</Label>
-                    <Input
-                      id="bibleCourses"
-                      type="number"
-                      min="0"
-                      value={bibleCourses}
-                      onChange={(e) => setBibleCourses(e.target.value)}
-                      placeholder="Ingrese el número de cursos bíblicos"
-                      className={inputClass}
-                    />
-                  </div>
-                </>
+              {showBibleCoursesField && (
+                <div className="space-y-2 animate-fade-in">
+                  <Label htmlFor="bibleCourses" className={labelClass}>Número de Cursos Bíblicos:</Label>
+                  <Input
+                    id="bibleCourses"
+                    type="number"
+                    min="0"
+                    value={bibleCourses}
+                    onChange={(e) => setBibleCourses(e.target.value)}
+                    placeholder="Ingrese el número de cursos bíblicos"
+                    className={inputClass}
+                  />
+                </div>
               )}
 
               {/* Participación */}

@@ -213,25 +213,23 @@ export function ReportsGrid({ reports, superintendents, onUpdateReport, onDelete
               </Select>
             </div>
             {(editForm.role === 'precursor_auxiliar' || editForm.role === 'precursor_regular') && (
-              <>
-                <div className="space-y-2">
-                  <Label>Horas</Label>
-                  <Input
-                    type="number"
-                    value={editForm.hours || ''}
-                    onChange={(e) => setEditForm({ ...editForm, hours: parseInt(e.target.value) || 0 })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Cursos Bíblicos</Label>
-                  <Input
-                    type="number"
-                    value={editForm.bibleCourses || ''}
-                    onChange={(e) => setEditForm({ ...editForm, bibleCourses: parseInt(e.target.value) || 0 })}
-                  />
-                </div>
-              </>
+              <div className="space-y-2">
+                <Label>Horas</Label>
+                <Input
+                  type="number"
+                  value={editForm.hours || ''}
+                  onChange={(e) => setEditForm({ ...editForm, hours: parseInt(e.target.value) || 0 })}
+                />
+              </div>
             )}
+            <div className="space-y-2">
+              <Label>Cursos Bíblicos</Label>
+              <Input
+                type="number"
+                value={editForm.bibleCourses || ''}
+                onChange={(e) => setEditForm({ ...editForm, bibleCourses: parseInt(e.target.value) || 0 })}
+              />
+            </div>
             <div className="space-y-2">
               <Label>Participación</Label>
               <Select
