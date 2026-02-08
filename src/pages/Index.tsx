@@ -296,7 +296,7 @@ const Index = () => {
             type="button"
             variant={easyMode ? 'default' : 'outline'}
             onClick={() => setEasyMode((prev) => !prev)}
-            className={easyMode ? 'min-w-[110px]' : 'min-w-[110px]'}
+            className="min-w-[110px]"
           >
             {easyMode ? 'Activado' : 'Activar'}
           </Button>
@@ -335,34 +335,64 @@ const Index = () => {
               </div>
             )}
 
+            {/* PROGRESO */}
             <div className="mb-5 rounded-xl border border-border/70 bg-muted/30 p-4">
-              <div className="flex items-center justify-between gap-4">
-                <p className="font-medium">Progreso del formulario</p>
-                <p className="text-sm font-semibold text-primary">{formProgress}%</p>
+              {/* Móvil / pantallas muy pequeñas: solo porcentaje */}
+              <div className="sm:hidden">
+                <div className="flex flex-col items-center justify-center py-1" aria-live="polite">
+                  <p className="text-xs text-muted-foreground">Progreso del formulario</p>
+                  <p className="mt-1 text-4xl font-extrabold tracking-tight text-primary">
+                    {formProgress}%
+                  </p>
+                  <p className="text-xs text-muted-foreground">completado</p>
+                </div>
               </div>
-              <Progress value={formProgress} className="mt-2 h-3" />
 
-              <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                <div className={`rounded-md border px-3 py-2 text-sm ${step1Done ? 'border-success/50 bg-success/10' : 'border-border bg-background/60'}`}>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className={`h-4 w-4 ${step1Done ? 'text-success' : 'text-muted-foreground'}`} />
-                    <span className="font-medium">Paso 1</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">Datos básicos</p>
+              {/* Tablet / escritorio: progreso completo */}
+              <div className="hidden sm:block">
+                <div className="flex items-center justify-between gap-4">
+                  <p className="font-medium">Progreso del formulario</p>
+                  <p className="text-sm font-semibold text-primary">{formProgress}%</p>
                 </div>
-                <div className={`rounded-md border px-3 py-2 text-sm ${step2Done ? 'border-success/50 bg-success/10' : 'border-border bg-background/60'}`}>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className={`h-4 w-4 ${step2Done ? 'text-success' : 'text-muted-foreground'}`} />
-                    <span className="font-medium">Paso 2</span>
+
+                <Progress value={formProgress} className="mt-2 h-3" />
+
+                <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                  <div
+                    className={`rounded-md border px-3 py-2 text-sm ${
+                      step1Done ? 'border-success/50 bg-success/10' : 'border-border bg-background/60'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className={`h-4 w-4 ${step1Done ? 'text-success' : 'text-muted-foreground'}`} />
+                      <span className="font-medium">Paso 1</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Datos básicos</p>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">Participación y capitán</p>
-                </div>
-                <div className={`rounded-md border px-3 py-2 text-sm ${step3Ready ? 'border-success/50 bg-success/10' : 'border-border bg-background/60'}`}>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className={`h-4 w-4 ${step3Ready ? 'text-success' : 'text-muted-foreground'}`} />
-                    <span className="font-medium">Paso 3</span>
+
+                  <div
+                    className={`rounded-md border px-3 py-2 text-sm ${
+                      step2Done ? 'border-success/50 bg-success/10' : 'border-border bg-background/60'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className={`h-4 w-4 ${step2Done ? 'text-success' : 'text-muted-foreground'}`} />
+                      <span className="font-medium">Paso 2</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Participación y capitán</p>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">Revisar y enviar</p>
+
+                  <div
+                    className={`rounded-md border px-3 py-2 text-sm ${
+                      step3Ready ? 'border-success/50 bg-success/10' : 'border-border bg-background/60'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className={`h-4 w-4 ${step3Ready ? 'text-success' : 'text-muted-foreground'}`} />
+                      <span className="font-medium">Paso 3</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Revisar y enviar</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -439,7 +469,9 @@ const Index = () => {
                 <RadioGroup value={participated} onValueChange={setParticipated}>
                   <Label
                     htmlFor="participated-yes"
-                    className={`block cursor-pointer rounded-lg border p-4 transition-colors ${participated === 'yes' ? 'border-success bg-success/5' : 'border-border hover:border-success/50'}`}
+                    className={`block cursor-pointer rounded-lg border p-4 transition-colors ${
+                      participated === 'yes' ? 'border-success bg-success/5' : 'border-border hover:border-success/50'
+                    }`}
                   >
                     <div className="flex items-start gap-3">
                       <RadioGroupItem value="yes" id="participated-yes" className="mt-1" />
@@ -456,7 +488,9 @@ const Index = () => {
 
                   <Label
                     htmlFor="participated-no"
-                    className={`block cursor-pointer rounded-lg border p-4 transition-colors ${participated === 'no' ? 'border-destructive bg-destructive/5' : 'border-border hover:border-destructive/50'}`}
+                    className={`block cursor-pointer rounded-lg border p-4 transition-colors ${
+                      participated === 'no' ? 'border-destructive bg-destructive/5' : 'border-border hover:border-destructive/50'
+                    }`}
                   >
                     <div className="flex items-start gap-3">
                       <RadioGroupItem value="no" id="participated-no" className="mt-1" />
