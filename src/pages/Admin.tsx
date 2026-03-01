@@ -400,8 +400,8 @@ const Admin = () => {
     }
   };
 
-  const handleMapAsOtherPerson = async (reportId: string, rawName: string) => {
-    const canonicalFullName = selectedCanonicalByReportId[reportId];
+  const handleMapAsOtherPerson = async (reportId: string, rawName: string, overrideCanonical?: string) => {
+    const canonicalFullName = overrideCanonical ?? selectedCanonicalByReportId[reportId];
     if (!canonicalFullName) {
       toast.error('Selecciona primero el nombre correcto del padrón.');
       return;
@@ -862,17 +862,18 @@ const Admin = () => {
                                           </p>
                                           <Button
                                             size="sm"
-                                            variant="secondary"
-                                            className="h-6 text-xs px-2 shrink-0"
+                                            variant="default"
+                                            className="h-6 text-xs px-2 shrink-0 bg-success hover:bg-success/90 text-white"
                                             disabled={busyReportId === report.id}
-                                            onClick={() => {
+                                            onClick={async () => {
                                               setSelectedCanonicalByReportId((prev) => ({
                                                 ...prev,
                                                 [report.id]: match.member.fullName,
                                               }));
+                                              await handleMapAsOtherPerson(report.id, report.fullName, match.member.fullName);
                                             }}
                                           >
-                                            Seleccionar
+                                            ✓ Sí, es esta persona
                                           </Button>
                                         </div>
                                       ))}
