@@ -67,7 +67,7 @@ const CONGREGATION_ROSTER: CongregationMember[] = [
   { fullName: 'Javier Escobedo', groupNumber: 3 },
   { fullName: 'Sicri Escobedo', groupNumber: 3 },
   { fullName: 'Rocio Urban', groupNumber: 3 },
-  { fullName: 'Sohara Malpica', groupNumber: 3 },
+  { fullName: 'Zohara Malpica Díaz', groupNumber: 3 },
   { fullName: 'Delia Malpica', groupNumber: 3 },
   { fullName: 'Silvia Reyes', groupNumber: 3 },
 
@@ -96,7 +96,7 @@ const CONGREGATION_ROSTER: CongregationMember[] = [
   { fullName: 'Oscar Sanchez', groupNumber: 5 },
   { fullName: 'Gloria de Gonzalez', groupNumber: 5 },
   { fullName: 'Marisol Cortez', groupNumber: 5 },
-  { fullName: 'Cesia Malpica', groupNumber: 5 },
+  { fullName: 'Cesiah Malpica', groupNumber: 5 },
   { fullName: 'Mariela de Gomez', groupNumber: 5 },
   { fullName: 'Denise de Sanchez', groupNumber: 5 },
   { fullName: 'Camila Gonzalez', groupNumber: 5 },
