@@ -31,8 +31,10 @@ import {
 } from 'lucide-react';
 import {
   findCongregationMemberByName,
+  findSimilarMembers,
   getCongregationRoster,
   normalizePersonName,
+  type RosterMatch,
 } from '@/data/congregationRoster';
 
 const BASE_EXPECTED_REPORTERS = 94;
@@ -86,6 +88,7 @@ const Admin = () => {
   // Alta manual de padrón
   const [manualMemberName, setManualMemberName] = useState('');
   const [manualMemberGroup, setManualMemberGroup] = useState<number>(1);
+  const [manualSuggestions, setManualSuggestions] = useState<RosterMatch[]>([]);
 
   const targetMonth = getPreviousMonth();
   const targetYear = getPreviousMonthYear();
@@ -490,6 +493,21 @@ const Admin = () => {
     }
   };
 
+  const handleManualNameChange = (value: string) => {
+    setManualMemberName(value);
+    if (value.trim().length >= 3) {
+      const suggestions = findSimilarMembers(value, roster, 3, 0.35);
+      // Excluir coincidencias exactas (ya están en el padrón)
+      setManualSuggestions(
+        suggestions.filter(
+          (s) => normalizePersonName(s.member.fullName) !== normalizePersonName(value)
+        )
+      );
+    } else {
+      setManualSuggestions([]);
+    }
+  };
+
   const handleAddManualMember = async () => {
     const cleanName = manualMemberName.trim();
     if (!cleanName) {
@@ -511,6 +529,7 @@ const Admin = () => {
 
       if (error) throw error;
       setManualMemberName('');
+      setManualSuggestions([]);
       await fetchAdjustments();
       toast.success('Miembro agregado al padrón');
     } catch (error) {
@@ -682,7 +701,7 @@ const Admin = () => {
                   <div className="grid gap-2 md:grid-cols-[1fr,180px,auto]">
                     <Input
                       value={manualMemberName}
-                      onChange={(e) => setManualMemberName(e.target.value)}
+                      onChange={(e) => handleManualNameChange(e.target.value)}
                       placeholder="Nombre completo (ej. Victor Gonzalez)"
                     />
                     <select
@@ -698,6 +717,40 @@ const Admin = () => {
                     </select>
                     <Button onClick={handleAddManualMember}>Agregar al padrón</Button>
                   </div>
+
+                  {manualSuggestions.length > 0 && (
+                    <div className="mt-2 rounded-lg border border-warning/40 bg-warning/10 p-3 space-y-2">
+                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        ¿Ya existe en el padrón? Posibles coincidencias:
+                      </p>
+                      {manualSuggestions.map((match) => (
+                        <div
+                          key={match.member.fullName}
+                          className="flex items-center justify-between rounded-md border border-warning/30 bg-background px-3 py-2"
+                        >
+                          <div>
+                            <p className="text-sm font-medium">{match.member.fullName}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Grupo {match.member.groupNumber} · similitud {Math.round(match.score * 100)}%
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="shrink-0"
+                            onClick={() => {
+                              setManualMemberName(match.member.fullName);
+                              setManualMemberGroup(match.member.groupNumber);
+                              setManualSuggestions([]);
+                            }}
+                          >
+                            Usar este nombre
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <p className="text-xs text-muted-foreground mt-2">
                     Úsalo cuando la persona no exista en el padrón base.
                   </p>
@@ -785,19 +838,50 @@ const Admin = () => {
                       ) : (
                         <div className="max-h-64 overflow-auto pr-1 space-y-2">
                           {unresolvedUnknownSubmitters.map((report) => {
-                            const maybeMember = findCongregationMemberByName(report.fullName);
                             const defaultGroup = report.superintendentGroupNumber ?? 1;
                             const selectedGroup = selectedGroupByReportId[report.id] ?? defaultGroup;
+                            const fuzzyMatches = findSimilarMembers(report.fullName, roster, 3, 0.35);
 
                             return (
                               <div key={report.id} className="rounded-lg border border-border/60 px-3 py-2 space-y-2">
                                 <div>
                                   <p className="text-sm font-medium">{report.fullName}</p>
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    {maybeMember
-                                      ? `Sugerencia: Grupo ${maybeMember.groupNumber}`
-                                      : 'Revisar ortografía o resolver desde los botones.'}
-                                  </p>
+                                  {fuzzyMatches.length > 0 ? (
+                                    <div className="mt-1.5 rounded-md border border-warning/40 bg-warning/10 p-2 space-y-1.5">
+                                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                                        <AlertTriangle className="h-3 w-3" />
+                                        ¿Es la misma persona?
+                                      </p>
+                                      {fuzzyMatches.map((match) => (
+                                        <div key={match.member.fullName} className="flex items-center justify-between gap-2">
+                                          <p className="text-xs">
+                                            <span className="font-medium">{match.member.fullName}</span>
+                                            <span className="text-muted-foreground ml-1">
+                                              G{match.member.groupNumber} · {Math.round(match.score * 100)}%
+                                            </span>
+                                          </p>
+                                          <Button
+                                            size="sm"
+                                            variant="secondary"
+                                            className="h-6 text-xs px-2 shrink-0"
+                                            disabled={busyReportId === report.id}
+                                            onClick={() => {
+                                              setSelectedCanonicalByReportId((prev) => ({
+                                                ...prev,
+                                                [report.id]: match.member.fullName,
+                                              }));
+                                            }}
+                                          >
+                                            Seleccionar
+                                          </Button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      Sin coincidencias en el padrón. Revisa ortografía o agrega.
+                                    </p>
+                                  )}
                                 </div>
 
                                 <div className="grid gap-2">
