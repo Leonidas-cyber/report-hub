@@ -33,7 +33,7 @@ const CONGREGATION_ROSTER: CongregationMember[] = [
   { fullName: 'Elvira Alfaro', groupNumber: 2 },
   { fullName: 'Angelica Lopez', groupNumber: 2 },
   { fullName: 'Rosalinda de Abasolo', groupNumber: 2 },
-  { fullName: 'Estela de Silva', groupNumber: 2 },
+  { fullName: 'María Estela Ramirez Licona', groupNumber: 2 },
   { fullName: 'Ana de Mejia', groupNumber: 2 },
   { fullName: 'Libni Mejia', groupNumber: 2 },
   { fullName: 'Norma de Lopez', groupNumber: 2 },
