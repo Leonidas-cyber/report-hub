@@ -337,6 +337,9 @@ const Admin = () => {
   };
 
   const handleClearDatabase = async () => {
+    // Refresh role first to avoid stale isSuperAdmin state after timeouts
+    await refreshAdminRole();
+
     if (!isSuperAdmin) {
       toast.error('Solo un super administrador puede borrar todos los informes');
       return;
