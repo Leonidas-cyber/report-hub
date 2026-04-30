@@ -66,7 +66,7 @@ const MISSING_TABLE_CODES = new Set(['42P01', 'PGRST205']);
 type AdminSection = 'seguimiento' | 'asistencia' | 'padron' | 'informes' | 'superadmin';
 
 const Admin = () => {
-  const { user, isSuperAdmin } = useAuth();
+  const { user, isSuperAdmin, refreshAdminRole } = useAuth();
   const { reports, loading, updateReport, deleteReport, refetch } = useServiceReports();
   const { superintendents } = useSuperintendents();
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
