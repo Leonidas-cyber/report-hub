@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
-  const loadAdminFlags = useCallback(async (currentUser: User | null) => {
+  const loadAdminFlags = useCallback(async (currentUser: User | null, retryMs = 12000) => {
     if (!currentUser?.id) {
       setIsAdmin(false);
       setIsSuperAdmin(false);
@@ -48,47 +48,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Mantenemos true para no bloquear la UI en refrescos/transitorios de red.
     setIsAdmin(true);
 
-    try {
-      const { data, error } = await withTimeout(
-        supabase
-          .from('admin_profiles')
-          .select('role')
-          .eq('user_id', currentUser.id)
-          .maybeSingle(),
-      );
+    const attemptLoad = async (timeoutMs: number): Promise<boolean | null> => {
+      try {
+        const { data, error } = await withTimeout(
+          supabase
+            .from('admin_profiles')
+            .select('role')
+            .eq('user_id', currentUser.id)
+            .maybeSingle(),
+          timeoutMs,
+        );
 
-      if (error) {
-        // Si la columna role todavía no existe en BD, no rompemos sesión
-        if (!/column .*role.* does not exist/i.test(error.message || '')) {
-          console.warn('No se pudo cargar rol de admin:', error.message);
+        if (error) {
+          // Si la columna role todavía no existe en BD, no rompemos sesión
+          if (!/column .*role.* does not exist/i.test(error.message || '')) {
+            console.warn('No se pudo cargar rol de admin:', error.message);
+          }
         }
-      }
 
-      if ((data as any)?.role === 'super_admin') {
-        setIsSuperAdmin(true);
-        return;
-      }
+        if ((data as any)?.role === 'super_admin') {
+          return true;
+        }
 
-      // Fallback por función SQL (cuando falta/está desactualizado admin_profiles)
-      const { data: isSa, error: saError } = await withTimeout(
-        supabase.rpc('is_super_admin', { target_user_id: currentUser.id }),
-      );
+        // Fallback por función SQL (cuando falta/está desactualizado admin_profiles)
+        const { data: isSa, error: saError } = await withTimeout(
+          supabase.rpc('is_super_admin', { target_user_id: currentUser.id }),
+          timeoutMs,
+        );
 
-      if (saError) {
-        console.warn('No se pudo validar super admin por RPC:', saError.message);
-        // Error transitorio: no degradar permisos en caliente.
-        return;
-      }
+        if (saError) {
+          console.warn('No se pudo validar super admin por RPC:', saError.message);
+          return null; // indeterminate
+        }
 
-      // Solo actualizamos cuando sí hubo respuesta válida del backend.
-      if (typeof isSa === 'boolean') {
-        setIsSuperAdmin(isSa);
+        if (typeof isSa === 'boolean') {
+          return isSa;
+        }
+
+        return null;
+      } catch (err) {
+        console.warn('Timeout/error cargando rol de admin:', err);
+        return null; // indeterminate — will retry
       }
-    } catch (err) {
-      console.warn('Timeout/error cargando rol de admin:', err);
-      // Evita "parpadeo" de permisos por timeout intermitente.
-      // Si ya era super_admin, conserva ese estado hasta próxima validación exitosa.
+    };
+
+    // First attempt with standard timeout
+    let result = await attemptLoad(7000);
+
+    // If indeterminate (timeout/error), retry once with a longer timeout
+    if (result === null) {
+      console.warn('Reintentando carga de rol de admin con timeout extendido...');
+      result = await attemptLoad(retryMs);
     }
+
+    // Only update state when we got a definitive answer
+    if (result !== null) {
+      setIsSuperAdmin(result);
+    }
+    // If still null after retry, preserve current state (avoids flickering on transient errors)
   }, []);
 
   useEffect(() => {
