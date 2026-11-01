@@ -47,6 +47,14 @@ import {
   type CongregationMember,
 } from '@/data/congregationRoster';
 
+// Convierte cualquier nombre (alias, nombre corregido por el admin, etc.) en la
+// clave del padrón. Así "Alberto Gonzalez Pacheco" y "Alberto Gonzalez P."
+// terminan en la misma clave y el publicador deja de aparecer como pendiente.
+const canonicalKeyFor = (name: string, groupNumber?: number | null): string => {
+  const member = findCongregationMemberByName(name, groupNumber);
+  return normalizePersonName(member ? member.fullName : name);
+};
+
 interface NameMappingRow {
   alias_normalized: string;
   canonical_full_name: string;
@@ -146,7 +154,7 @@ const Admin = () => {
   const aliasToCanonicalKey = useMemo(() => {
     const map = new Map<string, string>();
     for (const row of nameMappings) {
-      map.set(row.alias_normalized, normalizePersonName(row.canonical_full_name));
+      map.set(row.alias_normalized, canonicalKeyFor(row.canonical_full_name));
     }
     return map;
   }, [nameMappings]);
@@ -165,7 +173,7 @@ const Admin = () => {
       let canonicalKey: string | null = null;
 
       if (flag?.canonical_full_name) {
-        canonicalKey = normalizePersonName(flag.canonical_full_name);
+        canonicalKey = canonicalKeyFor(flag.canonical_full_name, report.superintendentGroupNumber);
       } else if (aliasToCanonicalKey.has(rawKey)) {
         canonicalKey = aliasToCanonicalKey.get(rawKey)!;
       } else {
