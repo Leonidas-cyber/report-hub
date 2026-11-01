@@ -15,7 +15,7 @@ export const GROUP_OVERSEERS: Record<number, string> = {
   6: 'Abraham Gonzalez',
 };
 
-// Padrón oficial de 98 publicadores distribuidos en los 6 grupos.
+// Padrón oficial de 98 publicadores con soporte ampliado para abreviaturas e iniciales (P., G., etc.)
 export const CONGREGATION_ROSTER: CongregationMember[] = [
   // ─── Grupo 1 — Valentin Callejas (15) ─────────────────────────────────────
   {
@@ -309,10 +309,10 @@ export const CONGREGATION_ROSTER: CongregationMember[] = [
     groupNumber: 3,
   },
   {
-    fullName: 'Fernando Juarez',
+    fullName: 'Fernando Vazquez',
     legalName: 'Juan Fernando Vazquez Tierrablanca',
     groupNumber: 3,
-    aliases: ['Juan Fernando Vazquez', 'Fernando Vazquez Tierrablanca'],
+    aliases: ['Juan Fernando Vazquez', 'Fernando Vazquez Tierrablanca', 'Fernando Juarez'],
   },
   {
     fullName: 'Fanny de Vazquez',
@@ -391,6 +391,7 @@ export const CONGREGATION_ROSTER: CongregationMember[] = [
       'Leonardo Gonzalez Pacheco',
       'Leonardo Alberto Gonzalez',
       'Leonardo Alberto Gonzalez Pacheco',
+      'Leonardo Gonzalez Pacheco Gonzalez',
       'Leonardo G P',
       'Leonardo G',
     ],
@@ -516,6 +517,7 @@ export const CONGREGATION_ROSTER: CongregationMember[] = [
       'Luis Alberto Gonzalez Pacheco',
       'Alberto Gonzalez Prado',
       'Alberto G P',
+      'Alberto Gonzalez Pacheco Prado',
     ],
   },
   {
@@ -697,7 +699,7 @@ export const CONGREGATION_ROSTER: CongregationMember[] = [
     fullName: 'Emmanuel Cruz',
     legalName: 'Emanuel Alexandro Cruz Diaz',
     groupNumber: 6,
-    aliases: ['Emanuel Cruz', 'Alexandro Cruz', 'Emmanuel Cruz Diaz', 'Emanuel Cruz Diaz'],
+    aliases: ['Emanuel Cruz', 'Alexandro Cruz', 'Emmanuel Cruz Diaz', 'Emanuel Cruz Diaz', 'Fernando Juarez'],
   },
   {
     fullName: 'Sebastian Cruz',
@@ -757,6 +759,7 @@ const phoneticKey = (word: string): string =>
     .replace(/h/g, '')
     .replace(/(.)\1+/g, '$1');
 
+// Permite emparejar una inicial (ej. "p") con una palabra completa que empiece con esa letra (ej. "pacheco")
 const tokensMatchOrInitial = (inputTok: string, targetTok: string): boolean => {
   if (inputTok === targetTok) return true;
   if (inputTok.length === 1 && targetTok.startsWith(inputTok)) return true;
@@ -834,12 +837,14 @@ export const findCongregationMemberByName = (
     }
 
     const isSingleWordMember = tokenizeMeaningful(member.fullName).length === 1;
-    const meetsMinimumWords =
-      (inputTokens.length >= 2 && fullWordCount >= 1) ||
+    
+    // Si el nombre ingresado contiene la mayoría de los tokens del padrón o viceversa
+    const meetsCoverage =
+      (matchedCount >= Math.min(inputTokens.length, memberTokens.length) * 0.75 && fullWordCount >= 1) ||
       (isSingleWordMember && fullWordCount === 1);
 
-    if (matchedCount === inputTokens.length && meetsMinimumWords) {
-      let score = 0.85 + Math.min(matchedCount / Math.max(memberTokens.length, 2), 1) * 0.1;
+    if (meetsCoverage) {
+      let score = 0.80 + (matchedCount / Math.max(memberTokens.length, inputTokens.length)) * 0.15;
 
       const primaryTokens = [
         ...tokenizeMeaningful(member.fullName),
@@ -892,7 +897,7 @@ function memberSimilarityScore(inputName: string, member: CongregationMember): n
     memberTokens.some((mTok) => tokensMatchOrInitial(inTok, mTok))
   ).length;
 
-  const tokenCoverage = matchedTokens / inputTokens.length;
+  const tokenCoverage = matchedTokens / Math.max(inputTokens.length, 1);
 
   const normIn = normalizePersonName(inputName);
   const candidateStrings = [
@@ -921,7 +926,7 @@ export function findSimilarMembers(
   inputName: string,
   roster: CongregationMember[] = CONGREGATION_ROSTER,
   limit = 3,
-  minScore = 0.35
+  minScore = 0.30
 ): RosterMatch[] {
   const normalizedInput = normalizePersonName(inputName);
   if (!normalizedInput) return [];
