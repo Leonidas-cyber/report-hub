@@ -37,7 +37,7 @@ import {
   type RosterMatch,
 } from '@/data/congregationRoster';
 
-const BASE_EXPECTED_REPORTERS = 94;
+const BASE_EXPECTED_REPORTERS = getCongregationRoster().length;
 
 interface NameMappingRow {
   alias_normalized: string;
