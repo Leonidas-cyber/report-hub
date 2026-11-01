@@ -312,7 +312,7 @@ export const CONGREGATION_ROSTER: CongregationMember[] = [
     fullName: 'Fernando Vazquez',
     legalName: 'Juan Fernando Vazquez Tierrablanca',
     groupNumber: 3,
-    aliases: ['Juan Fernando Vazquez', 'Fernando Vazquez Tierrablanca', 'Fernando Juarez'],
+    aliases: ['Juan Fernando Vazquez', 'Fernando Vazquez Tierrablanca'],
   },
   {
     fullName: 'Fanny de Vazquez',
@@ -699,7 +699,7 @@ export const CONGREGATION_ROSTER: CongregationMember[] = [
     fullName: 'Emmanuel Cruz',
     legalName: 'Emanuel Alexandro Cruz Diaz',
     groupNumber: 6,
-    aliases: ['Emanuel Cruz', 'Alexandro Cruz', 'Emmanuel Cruz Diaz', 'Emanuel Cruz Diaz', 'Fernando Juarez'],
+    aliases: ['Emanuel Cruz', 'Alexandro Cruz', 'Emmanuel Cruz Diaz', 'Emanuel Cruz Diaz'],
   },
   {
     fullName: 'Sebastian Cruz',
@@ -735,7 +735,25 @@ export const CONGREGATION_ROSTER: CongregationMember[] = [
 
 export const TOTAL_EXPECTED_REPORTERS = CONGREGATION_ROSTER.length;
 
-const STOPWORDS = new Set(['de', 'del', 'la', 'las', 'los', 'viuda', 'vda', 'y']);
+// ═════════════════════════════════════════════════════════════════════════════
+//  REEMPLAZA TODO LO QUE VA DESDE `const STOPWORDS` HASTA EL FINAL DEL ARCHIVO
+//  (el padrón CONGREGATION_ROSTER y GROUP_OVERSEERS quedan intactos).
+//  Mantiene la API: normalizePersonName, getCongregationRoster,
+//  findCongregationMemberByName, hasCongregationMember, findSimilarMembers.
+// ═════════════════════════════════════════════════════════════════════════════
+
+const STOPWORDS = new Set([
+  'de', 'del', 'la', 'las', 'los', 'viuda', 'vda', 'y',
+  // tratamientos que a veces se cuelan en los reportes
+  'hno', 'hermano', 'hna', 'hermana', 'sr', 'sra', 'srita', 'sta',
+]);
+
+/** Score mínimo para aceptar una coincidencia automática. */
+const MATCH_THRESHOLD = 0.8;
+/** Si el 2º mejor candidato (otra persona) queda a menos de esto, es ambiguo. */
+const AMBIGUITY_MARGIN = 0.04;
+/** Bonus por pertenecer al grupo preferido (solo desempata). */
+const GROUP_BONUS = 0.04;
 
 export const normalizePersonName = (value: string): string =>
   (value || '')
@@ -751,170 +769,181 @@ const tokenizeMeaningful = (value: string): string[] =>
     .split(' ')
     .filter((t) => t.length > 0 && !STOPWORDS.has(t));
 
+// ─── Fonética del español ────────────────────────────────────────────────────
+// Reduce una palabra a una "huella de sonido" para que b/v, s/z/c, ll/y, j/g,
+// x/j, qu/k, h muda, letras dobles, etc. den la misma clave.
 const phoneticKey = (word: string): string =>
   word
+    .replace(/ph/g, 'f')
+    .replace(/ch/g, '4') // conserva "ch" antes de quitar la h muda
+    .replace(/ll/g, 'y')
+    .replace(/qu/g, 'k')
+    .replace(/gu([ei])/g, 'g$1')
+    .replace(/c([ei])/g, 's$1')
     .replace(/z/g, 's')
+    .replace(/[cq]/g, 'k')
+    .replace(/g([ei])/g, 'j$1')
+    .replace(/[xj]/g, 'j')
+    .replace(/w/g, 'u')
     .replace(/v/g, 'b')
     .replace(/y/g, 'i')
     .replace(/h/g, '')
     .replace(/(.)\1+/g, '$1');
 
-// Permite emparejar una inicial (ej. "p") con una palabra completa que empiece con esa letra (ej. "pacheco")
-const tokensMatchOrInitial = (inputTok: string, targetTok: string): boolean => {
-  if (inputTok === targetTok) return true;
-  if (inputTok.length === 1 && targetTok.startsWith(inputTok)) return true;
-  if (targetTok.length === 1 && inputTok.startsWith(targetTok)) return true;
-  if (inputTok.length >= 3 && targetTok.length >= 3 && phoneticKey(inputTok) === phoneticKey(targetTok)) {
-    return true;
-  }
-  return false;
-};
-
-const getMemberAllTokens = (member: CongregationMember): string[] => {
-  const sources = [
-    member.fullName,
-    member.legalName ?? '',
-    member.marriedSurname ?? '',
-    ...(member.aliases ?? []),
-  ];
-  const tokenSet = new Set<string>();
-  for (const src of sources) {
-    for (const tok of tokenizeMeaningful(src)) {
-      tokenSet.add(tok);
-    }
-  }
-  return Array.from(tokenSet);
-};
-
-const rosterByNormalizedVariant = new Map<string, CongregationMember>();
-for (const member of CONGREGATION_ROSTER) {
-  const variants = [
-    member.fullName,
-    member.legalName,
-    ...(member.aliases ?? []),
-  ].filter(Boolean) as string[];
-
-  for (const v of variants) {
-    const key = normalizePersonName(v);
-    if (key && !rosterByNormalizedVariant.has(key)) {
-      rosterByNormalizedVariant.set(key, member);
-    }
-  }
-}
-
-export const getCongregationRoster = (): CongregationMember[] => CONGREGATION_ROSTER;
-
-export const findCongregationMemberByName = (
-  fullName: string,
-  preferredGroupNumber?: number | null
-): CongregationMember | undefined => {
-  const normalizedInput = normalizePersonName(fullName);
-  if (!normalizedInput) return undefined;
-
-  const direct = rosterByNormalizedVariant.get(normalizedInput);
-  if (direct) return direct;
-
-  const inputTokens = tokenizeMeaningful(fullName);
-  if (inputTokens.length === 0) return undefined;
-
-  let bestCandidate: CongregationMember | undefined;
-  let bestScore = 0;
-
-  for (const member of CONGREGATION_ROSTER) {
-    const memberTokens = getMemberAllTokens(member);
-
-    let matchedCount = 0;
-    let fullWordCount = 0;
-
-    for (const inTok of inputTokens) {
-      const matched = memberTokens.some((mTok) => tokensMatchOrInitial(inTok, mTok));
-      if (matched) {
-        matchedCount += 1;
-        if (inTok.length > 1) {
-          fullWordCount += 1;
-        }
-      }
-    }
-
-    const isSingleWordMember = tokenizeMeaningful(member.fullName).length === 1;
-    
-    // Si el nombre ingresado contiene la mayoría de los tokens del padrón o viceversa
-    const meetsCoverage =
-      (matchedCount >= Math.min(inputTokens.length, memberTokens.length) * 0.75 && fullWordCount >= 1) ||
-      (isSingleWordMember && fullWordCount === 1);
-
-    if (meetsCoverage) {
-      let score = 0.80 + (matchedCount / Math.max(memberTokens.length, inputTokens.length)) * 0.15;
-
-      const primaryTokens = [
-        ...tokenizeMeaningful(member.fullName),
-        ...tokenizeMeaningful(member.legalName ?? ''),
-      ];
-      if (primaryTokens.some((pt) => tokensMatchOrInitial(inputTokens[0], pt))) {
-        score += 0.03;
-      }
-
-      if (preferredGroupNumber && member.groupNumber === preferredGroupNumber) {
-        score += 0.05;
-      }
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestCandidate = member;
-      }
-    }
-  }
-
-  return bestCandidate;
-};
-
-export const hasCongregationMember = (fullName: string, preferredGroupNumber?: number | null): boolean =>
-  Boolean(findCongregationMemberByName(fullName, preferredGroupNumber));
-
-function levenshtein(a: string, b: string): number {
+// ─── Distancia de edición (Damerau-Levenshtein / OSA) ────────────────────────
+// Cuenta una transposición ("Gonzlaez" → "Gonzalez") como 1 error, no 2.
+function editDistance(a: string, b: string): number {
   const m = a.length;
   const n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
   const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
     Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
   );
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
-      dp[i][j] =
-        a[i - 1] === b[j - 1]
-          ? dp[i - 1][j - 1]
-          : 1 + Math.min(dp[i - 1][j - 1], dp[i][j], dp[i][j - 1]);
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        dp[i][j] = Math.min(dp[i][j], dp[i - 2][j - 2] + 1);
+      }
     }
   }
   return dp[m][n];
 }
 
-function memberSimilarityScore(inputName: string, member: CongregationMember): number {
-  const inputTokens = tokenizeMeaningful(inputName);
-  if (inputTokens.length === 0) return 0;
+const stringSimilarity = (a: string, b: string): number => {
+  const maxLen = Math.max(a.length, b.length, 1);
+  return 1 - editDistance(a, b) / maxLen;
+};
 
-  const memberTokens = getMemberAllTokens(member);
-  const matchedTokens = inputTokens.filter((inTok) =>
-    memberTokens.some((mTok) => tokensMatchOrInitial(inTok, mTok))
-  ).length;
+// ─── Similitud entre dos palabras (0..1) ─────────────────────────────────────
+function tokenSimilarity(a: string, pa: string, b: string, pb: string): number {
+  if (a === b) return 1;
 
-  const tokenCoverage = matchedTokens / Math.max(inputTokens.length, 1);
+  // Iniciales: "p" ↔ "pacheco"
+  if (a.length === 1 || b.length === 1) return a[0] === b[0] ? 0.8 : 0;
 
-  const normIn = normalizePersonName(inputName);
-  const candidateStrings = [
-    member.fullName,
-    member.legalName ?? '',
-    ...(member.aliases ?? []),
-  ].filter(Boolean);
+  // Mismo sonido en español (Valentin/Balentin, Jesica/Yesica, Xavier/Javier)
+  if (pa === pb) return 0.97;
 
-  let bestStringSim = 0;
-  for (const str of candidateStrings) {
-    const normTarget = normalizePersonName(str);
-    const maxLen = Math.max(normIn.length, normTarget.length, 1);
-    const levSim = 1 - levenshtein(normIn, normTarget) / maxLen;
-    if (levSim > bestStringSim) bestStringSim = levSim;
+  const minLen = Math.min(a.length, b.length);
+
+  // Abreviaturas por prefijo: "Gonz" ↔ "Gonzalez", "Guill" ↔ "Guillermo"
+  if (minLen >= 4 && (a.startsWith(b) || b.startsWith(a))) return 0.85;
+
+  // Palabras muy cortas: solo exactas o fonéticas (evita Ana≈Ada, Luis≈Luz)
+  if (minLen <= 3) return 0;
+
+  const raw = stringSimilarity(a, b);
+  const phon = stringSimilarity(pa, pb) * 0.97;
+  const s = Math.max(raw, phon);
+  return s >= 0.7 ? s : 0;
+}
+
+// ─── Índice precalculado del padrón ──────────────────────────────────────────
+interface NameForm {
+  norm: string;       // "jose luis lopez"
+  compact: string;    // "joseluislopez" (sin espacios)
+  tokens: string[];
+  phon: string[];
+}
+
+interface IndexedMember {
+  member: CongregationMember;
+  forms: NameForm[];
+}
+
+const buildForm = (raw: string): NameForm | null => {
+  const tokens = tokenizeMeaningful(raw);
+  if (tokens.length === 0) return null;
+  return {
+    norm: tokens.join(' '),
+    compact: tokens.join(''),
+    tokens,
+    phon: tokens.map(phoneticKey),
+  };
+};
+
+const buildIndex = (roster: CongregationMember[]): IndexedMember[] =>
+  roster.map((member) => {
+    const seen = new Set<string>();
+    const forms: NameForm[] = [];
+    const raws = [member.fullName, member.legalName ?? '', ...(member.aliases ?? [])];
+    for (const raw of raws) {
+      const f = buildForm(raw);
+      if (f && !seen.has(f.norm)) {
+        seen.add(f.norm);
+        forms.push(f);
+      }
+    }
+    return { member, forms };
+  });
+
+const ROSTER_INDEX: IndexedMember[] = buildIndex(CONGREGATION_ROSTER);
+
+// Coincidencia exacta (normalizada) → lista, porque un alias puede repetirse
+const rosterByNormalizedVariant = new Map<string, CongregationMember[]>();
+for (const { member, forms } of ROSTER_INDEX) {
+  for (const f of forms) {
+    const list = rosterByNormalizedVariant.get(f.norm) ?? [];
+    if (!list.includes(member)) list.push(member);
+    rosterByNormalizedVariant.set(f.norm, list);
+  }
+}
+
+// ─── Puntuación de una entrada contra UNA forma de nombre ────────────────────
+function scoreAgainstForm(inTokens: string[], inPhon: string[], inCompact: string, form: NameForm): number {
+  // 1) Alineación palabra-a-palabra (uno a uno, sin importar el orden)
+  const pairs: { i: number; j: number; s: number }[] = [];
+  for (let i = 0; i < inTokens.length; i++) {
+    for (let j = 0; j < form.tokens.length; j++) {
+      const s = tokenSimilarity(inTokens[i], inPhon[i], form.tokens[j], form.phon[j]);
+      if (s > 0) pairs.push({ i, j, s });
+    }
+  }
+  pairs.sort((x, y) => y.s - x.s);
+
+  const usedI = new Set<number>();
+  const usedJ = new Set<number>();
+  let sum = 0;
+  let strong = 0;
+  for (const p of pairs) {
+    if (usedI.has(p.i) || usedJ.has(p.j)) continue;
+    usedI.add(p.i);
+    usedJ.add(p.j);
+    sum += p.s;
+    if (inTokens[p.i].length > 1 && p.s >= 0.85) strong++;
   }
 
-  return tokenCoverage * 0.7 + bestStringSim * 0.3;
+  let tokenScore = 0;
+  if (strong > 0) {
+    const precision = sum / inTokens.length;  // ¿qué tanto de lo escrito encaja?
+    const recall = sum / form.tokens.length;  // ¿qué tanto del nombre cubrí?
+    tokenScore = precision * 0.75 + recall * 0.25;
+  }
+
+  // 2) Comparación "pegada" (espacios mal puestos: "Joseluis", "Maria Del Rocio"
+  //    vs "Mariadel Rocio", "Gonzalezpacheco"). Compara en crudo y en fonético.
+  let compactScore = 0;
+  if (inCompact.length >= 5 && form.compact.length >= 5) {
+    const raw = stringSimilarity(inCompact, form.compact);
+    const phon = stringSimilarity(phoneticKey(inCompact), phoneticKey(form.compact)) * 0.97;
+    const best = Math.max(raw, phon);
+    if (best >= 0.88) compactScore = best * 0.98;
+  }
+
+  return Math.max(tokenScore, compactScore);
+}
+
+// ─── Puntuación de una entrada contra un miembro (mejor de sus formas) ───────
+function scoreMember(inTokens: string[], inPhon: string[], inCompact: string, im: IndexedMember): number {
+  let best = 0;
+  for (const form of im.forms) {
+    const s = scoreAgainstForm(inTokens, inPhon, inCompact, form);
+    if (s > best) best = s;
+  }
+  return best;
 }
 
 export interface RosterMatch {
@@ -922,21 +951,105 @@ export interface RosterMatch {
   score: number;
 }
 
+/** Ranking completo de candidatos (ordenado de mayor a menor score). */
+function rankMembers(
+  inputName: string,
+  preferredGroupNumber?: number | null,
+  index: IndexedMember[] = ROSTER_INDEX
+): RosterMatch[] {
+  const inTokens = tokenizeMeaningful(inputName);
+  if (inTokens.length === 0) return [];
+  const inPhon = inTokens.map(phoneticKey);
+  const inCompact = inTokens.join('');
+
+  const ranked: RosterMatch[] = [];
+  for (const im of index) {
+    let score = scoreMember(inTokens, inPhon, inCompact, im);
+    if (score <= 0) continue;
+    if (preferredGroupNumber && im.member.groupNumber === preferredGroupNumber) {
+      score = Math.min(1, score + GROUP_BONUS);
+    }
+    ranked.push({ member: im.member, score });
+  }
+  return ranked.sort((a, b) => b.score - a.score);
+}
+
+export interface NameMatchResult {
+  member?: CongregationMember;
+  score: number;
+  /** true si hay dos o más personas igual de probables (no se eligió ninguna). */
+  ambiguous: boolean;
+  /** Otros candidatos cercanos, útil para mostrar "¿Quisiste decir…?" */
+  alternatives: RosterMatch[];
+}
+
+/** Versión detallada: devuelve score, ambigüedad y alternativas. */
+export function matchCongregationMember(
+  fullName: string,
+  preferredGroupNumber?: number | null
+): NameMatchResult {
+  const normalizedInput = normalizePersonName(fullName);
+  if (!normalizedInput) return { score: 0, ambiguous: false, alternatives: [] };
+
+  // Atajo: coincidencia exacta normalizada
+  const exact = rosterByNormalizedVariant.get(tokenizeMeaningful(fullName).join(' '));
+  if (exact && exact.length === 1) {
+    return { member: exact[0], score: 1, ambiguous: false, alternatives: [] };
+  }
+  if (exact && exact.length > 1) {
+    const inGroup = preferredGroupNumber
+      ? exact.filter((m) => m.groupNumber === preferredGroupNumber)
+      : [];
+    if (inGroup.length === 1) {
+      return { member: inGroup[0], score: 1, ambiguous: false, alternatives: [] };
+    }
+    return {
+      score: 1,
+      ambiguous: true,
+      alternatives: exact.map((member) => ({ member, score: 1 })),
+    };
+  }
+
+  const ranked = rankMembers(fullName, preferredGroupNumber);
+  const best = ranked[0];
+  if (!best || best.score < MATCH_THRESHOLD) {
+    return { score: best?.score ?? 0, ambiguous: false, alternatives: ranked.slice(0, 3) };
+  }
+
+  const rival = ranked.find((r) => r.member !== best.member);
+  if (rival && best.score - rival.score < AMBIGUITY_MARGIN) {
+    return { score: best.score, ambiguous: true, alternatives: ranked.slice(0, 3) };
+  }
+
+  return {
+    member: best.member,
+    score: best.score,
+    ambiguous: false,
+    alternatives: ranked.slice(1, 4),
+  };
+}
+
+export const getCongregationRoster = (): CongregationMember[] => CONGREGATION_ROSTER;
+
+export const findCongregationMemberByName = (
+  fullName: string,
+  preferredGroupNumber?: number | null
+): CongregationMember | undefined =>
+  matchCongregationMember(fullName, preferredGroupNumber).member;
+
+export const hasCongregationMember = (fullName: string, preferredGroupNumber?: number | null): boolean =>
+  Boolean(findCongregationMemberByName(fullName, preferredGroupNumber));
+
+/** Sugerencias para "¿quisiste decir…?" cuando no hay coincidencia segura. */
 export function findSimilarMembers(
   inputName: string,
   roster: CongregationMember[] = CONGREGATION_ROSTER,
   limit = 3,
-  minScore = 0.30
+  minScore = 0.5
 ): RosterMatch[] {
-  const normalizedInput = normalizePersonName(inputName);
-  if (!normalizedInput) return [];
-
-  return roster
-    .map((member) => ({
-      member,
-      score: memberSimilarityScore(inputName, member),
-    }))
+  if (!normalizePersonName(inputName)) return [];
+  const index = roster === CONGREGATION_ROSTER ? ROSTER_INDEX : buildIndex(roster);
+  return rankMembers(inputName, null, index)
     .filter((m) => m.score >= minScore)
-    .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }
