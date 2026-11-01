@@ -1,4 +1,37 @@
-{ id: '2', name: 'Rogelio Teliz', group: 2 },
+
+export type RoleType = 'publicador' | 'precursor_auxiliar' | 'precursor_regular';
+
+export interface Superintendent {
+  id: string;
+  name: string;
+  group: number;
+}
+
+export interface ServiceReport {
+  id: string;
+  fullName: string;
+  role: RoleType;
+  hours?: number;
+  bibleCourses?: number;
+  participated: boolean;
+  superintendentId: string;
+  superintendentName: string;
+  notes: string;
+  month: string;
+  year: number;
+  submittedAt: string;
+  status: 'pending' | 'reviewed' | 'edited';
+}
+
+export const ROLES: { value: RoleType; label: string }[] = [
+  { value: 'publicador', label: 'Publicador' },
+  { value: 'precursor_auxiliar', label: 'Precursor Auxiliar' },
+  { value: 'precursor_regular', label: 'Precursor Regular' },
+];
+
+export const SUPERINTENDENTS: Superintendent[] = [
+  { id: '1', name: 'Valentin Callejas', group: 1 },
+  { id: '2', name: 'Rogelio Teliz', group: 2 },
   { id: '3', name: 'Rafael Gomez', group: 3 },
   { id: '4', name: 'David Novoa', group: 4 },
   { id: '5', name: 'Alberto Gonzalez P.', group: 5 },
@@ -15,7 +48,6 @@ export const MONTHS = [
  */
 export function getPreviousMonth(): string {
   const currentMonth = new Date().getMonth();
-  // If January (0), return December (11)
   const previousMonthIndex = currentMonth === 0 ? 11 : currentMonth - 1;
   return MONTHS[previousMonthIndex];
 }
@@ -26,12 +58,11 @@ export function getPreviousMonth(): string {
 export function getPreviousMonthYear(): number {
   const now = new Date();
   const currentMonth = now.getMonth();
-  // If January, the previous month (December) belongs to last year
   return currentMonth === 0 ? now.getFullYear() - 1 : now.getFullYear();
 }
 
 /**
- * @deprecated Use getPreviousMonth() instead - reports should always be for the previous month
+ * @deprecated Use getPreviousMonth() instead
  */
 export function getCurrentMonth(): string {
   return MONTHS[new Date().getMonth()];
