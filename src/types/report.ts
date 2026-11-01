@@ -1,39 +1,8 @@
-export type RoleType = 'publicador' | 'precursor_auxiliar' | 'precursor_regular';
-
-export interface Superintendent {
-  id: string;
-  name: string;
-  group: number;
-}
-
-export interface ServiceReport {
-  id: string;
-  fullName: string;
-  role: RoleType;
-  hours?: number;
-  bibleCourses?: number;
-  participated: boolean;
-  superintendentId: string;
-  superintendentName: string;
-  notes: string;
-  month: string;
-  year: number;
-  submittedAt: string;
-  status: 'pending' | 'reviewed' | 'edited';
-}
-
-export const ROLES: { value: RoleType; label: string }[] = [
-  { value: 'publicador', label: 'Publicador' },
-  { value: 'precursor_auxiliar', label: 'Precursor Auxiliar' },
-  { value: 'precursor_regular', label: 'Precursor Regular' },
-];
-
-export const SUPERINTENDENTS: Superintendent[] = [
-  { id: '1', name: 'Alberto G.', group: 1 },
-  { id: '2', name: 'David N.', group: 2 },
-  { id: '3', name: 'Abraham G.', group: 3 },
-  { id: '4', name: 'Rogelio T.', group: 4 },
-  { id: '5', name: 'Rafael G.', group: 5 },
+{ id: '2', name: 'Rogelio Teliz', group: 2 },
+  { id: '3', name: 'Rafael Gomez', group: 3 },
+  { id: '4', name: 'David Novoa', group: 4 },
+  { id: '5', name: 'Alberto Gonzalez P.', group: 5 },
+  { id: '6', name: 'Abraham Gonzalez', group: 6 },
 ];
 
 export const MONTHS = [
