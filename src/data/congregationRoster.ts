@@ -746,6 +746,8 @@ const STOPWORDS = new Set([
   'de', 'del', 'la', 'las', 'los', 'viuda', 'vda', 'y',
   // tratamientos que a veces se cuelan en los reportes
   'hno', 'hermano', 'hna', 'hermana', 'sr', 'sra', 'srita', 'sta',
+  // ruido típico de un informe: "Alberto Gonzalez - 10 hrs (Grupo 5)"
+  'hr', 'hrs', 'hora', 'horas', 'grupo', 'informe', 'publicador', 'publicadora',
 ]);
 
 /** Score mínimo para aceptar una coincidencia automática. */
@@ -767,7 +769,8 @@ export const normalizePersonName = (value: string): string =>
 const tokenizeMeaningful = (value: string): string[] =>
   normalizePersonName(value)
     .split(' ')
-    .filter((t) => t.length > 0 && !STOPWORDS.has(t));
+    // fuera palabras vacías y números sueltos (horas, numeración "1.", etc.)
+    .filter((t) => t.length > 0 && !STOPWORDS.has(t) && !/^\d+$/.test(t));
 
 // ─── Fonética del español ────────────────────────────────────────────────────
 // Reduce una palabra a una "huella de sonido" para que b/v, s/z/c, ll/y, j/g,
@@ -921,6 +924,15 @@ function scoreAgainstForm(inTokens: string[], inPhon: string[], inCompact: strin
     const precision = sum / inTokens.length;  // ¿qué tanto de lo escrito encaja?
     const recall = sum / form.tokens.length;  // ¿qué tanto del nombre cubrí?
     tokenScore = precision * 0.75 + recall * 0.25;
+
+    // "Nombre contenido": el texto trae TODO el nombre del padrón más palabras
+    // extra (ej. "Leonardo Gonzalez Pacheco informe 2"). Se acepta, con una
+    // penalización pequeña por cada palabra sobrante, sin superar a una
+    // coincidencia limpia.
+    const extras = inTokens.length - usedI.size;
+    if (form.tokens.length >= 2 && recall >= 0.95 && extras >= 1 && extras <= 3) {
+      tokenScore = Math.max(tokenScore, 0.9 - 0.03 * extras);
+    }
   }
 
   // 2) Comparación "pegada" (espacios mal puestos: "Joseluis", "Maria Del Rocio"
